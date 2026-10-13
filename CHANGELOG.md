@@ -5,6 +5,13 @@ commit comparisons are available from the linked GitHub Releases.
 
 ## [Unreleased]
 
+### Added
+
+- `examples/demo-plugin`: a minimal JUCE 9 WebView plugin with an end-to-end test
+  that drives its slider, checks the C++ parameter both ways, and screenshots a
+  WebGL meter. On macOS it can re-sign each build with a stable local identity
+  (`LOCAL_CODESIGN_IDENTITY`) so the Screen Recording grant survives rebuilds.
+
 ### Changed
 
 - **Breaking:** the project is renamed from `juce-webview-agent-bridge` to
