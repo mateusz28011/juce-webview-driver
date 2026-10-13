@@ -1,16 +1,31 @@
 ---
 name: juce-webview-driver
-description: Drive a live embedded WebView from outside via juce_webview_driver — eval JS, stream console/network, click/fill, screenshot (incl. WebGL) on the real running app, no CDP. Use when inspecting or driving a running app's embedded web UI, the juce_webview_driver module, webview-driver.mjs, or e2e.mjs.
+description: Test and drive the live WebView UI of a running JUCE plugin or app through juce_webview_driver (no CDP; WKWebView and WebView2). Use when writing end-to-end tests for a JUCE WebView UI, inspecting or debugging a running app's embedded web UI (eval, DOM, console/network, WebGL screenshots), or embedding the juce_webview_driver module in a host.
 ---
 
 # juce webview driver
 
-Drive the **real** embedded WebView of a running native app over a loopback JSON socket — the live runtime (native bridge, real state), not a dev-server copy in a separate browser. Works on WKWebView and WebView2 (no CDP). The app must embed the `juce_webview_driver` JUCE module (Debug builds only).
+Drive the **real** embedded WebView of a running native app over a loopback JSON socket — the live runtime (native bridge, real state), not a dev-server copy in a separate browser. Works on WKWebView and WebView2 (no CDP). The app must embed the `juce_webview_driver` JUCE module (Debug builds only); if it doesn't yet, start at [Setting up a host](#setting-up-a-host).
 
 Client: prefer the project's installed npm package (`npx juce-webview-driver <cmd>`), or run
 `node <path-to>/tools/webview-driver.mjs <cmd>` from a checkout of
 [juce-webview-driver](https://github.com/mateusz28011/juce-webview-driver).
 The published client has zero runtime dependencies and requires Node ≥ 22.
+
+## Setting up a host
+
+Three calls in the editor that owns the `juce::WebBrowserComponent`, all compiled out unless `WEBVIEW_DRIVER_ENABLED` (Debug by default):
+
+```cpp
+#include <juce_webview_driver/juce_webview_driver.h>
+driver  = std::make_shared<webview_driver::WebViewDriver>();
+options = webview_driver::withCapture (std::move (options), driver); // before the WebView is created
+webview_driver::connect (*driver, *webView, *this);                  // after it exists
+driver->start();                                                     // 127.0.0.1:8930
+driver->stop();                                                      // in the destructor, before the WebView dies
+```
+
+Register C++ state the tests need as `withNativeFunction`s (e.g. `getGain`/`setGain`); tests reach them with `page.backend(...)`. `examples/demo-plugin` in the driver's repo is the complete reference: a JUCE 9 plugin with a slider relay, two native functions, a page readiness flag, a test, and macOS stable signing.
 
 ## Connecting
 
@@ -62,7 +77,8 @@ page.close();
 - **Compositing instruments:** `page.layerDebug(true|false)` toggles the overlay borders/repaint counters; `page.layerTree()` returns the CALayer-tree text and the exported pure `parseLayerTree(text)` turns it into `[{x,y,width,height}, …]` — e.g. `parseLayerTree(await page.layerTree()).filter(l => l.width===400)` counts a specific surface's layers from a script.
 - **JUCE native fns:** `await page.backend('name', ...args)` (await result) / `page.fireBackend('name', ...args)` (fire-and-forget), over the generic `__juce__invoke` bridge.
 - **Action log:** `connect()` writes every action (click/fill/drag/backend/fire) to ONE file (`$WEBVIEW_DRIVER_LOG_FILE` / `connect({logFile})` / `<tmp>/webview_driver_e2e.log`) + echoes to stderr, so a live run shows progress. `page.logFile` is the path; `fileLogger(path)` is exported.
-- **Typed failures:** a failed op rejects with `BridgeOpError` (exported) carrying `.code` — a `BridgeErrorCode` (`NO_WEBVIEW`/`EVAL_ERROR`/`SCREENSHOT_UNAVAILABLE`/`SCREENSHOT_FAILED`/`LAYER_UNAVAILABLE`/`AUTH_REQUIRED`/`UNKNOWN_OP`) — plus `.message`. Branch on `e.code`, not message text.
+- **Typed failures:** a failed op rejects with `BridgeOpError` (exported) carrying `.code` — a `BridgeErrorCode` (`NO_WEBVIEW`/`EVAL_ERROR`/`SCREENSHOT_UNAVAILABLE`/`SCREENSHOT_FAILED`/`LAYER_UNAVAILABLE`/`AUTH_REQUIRED`/`UNKNOWN_OP`, or `'UNKNOWN'` / a newer host's own string) — plus `.message`. Branch on `e.code`, not message text.
+- **Writing a test:** start each run with `await page.waitForFunction(<the page's readiness flag>)` — the DOM exists before a module script attaches its handlers, so an early `fill` can be lost. Assert the *effect* in C++ with `expect.poll(() => page.backend('getX'))`, not just the DOM. Parameters come back as float32: assert with `toSatisfy(v => Math.abs(v - 0.8) < 1e-3)`, or use exactly representable values (0.25, 0.5).
 - Stays **app-agnostic** — put app-specific selectors / native-fn names / state getters in your *project* (thin wrappers over `backend`/`fireBackend`/`readBig`), never in `e2e.mjs`.
 
 ## Diagnostic techniques
@@ -75,11 +91,12 @@ page.close();
 - **Select by text, not index** — the DOM re-renders and indices shift: `[...document.querySelectorAll('button')].find(b=>b.innerText.trim()==='SAVE')`.
 - **An `eval` result >~100KB stalls** WKWebView's `evaluateJavascript` (and head-of-line-blocks the socket → 15s timeout). Read big payloads in chunks via `e2e.mjs` `readBig`, or fetch only what you need.
 - **Synthetic input is `isTrusted=false`** — only *user-gesture-gated browser APIs* are blocked (native file pickers, clipboard, fullscreen, HTML5 `dataTransfer` drag-drop). Ordinary component handlers fire fine, so a custom knob/slider drag, clicks, and typing DO work via `drag`/`click`/`fill` — don't assume "drag is impossible".
-- **Backgrounded WebView reads stale/empty** — when the host window isn't on screen, `document.hidden===true` and many apps pause timers/polling/state-sync; `eval` still works but state is frozen. Bring the host window to the foreground (e.g. macOS `osascript -e 'tell application "<App>" to activate'`) — the real, faithful fix — before asserting.
+- **Backgrounded WebView reads stale/empty** — when the host window isn't on screen, `document.hidden===true` and many apps pause timers/polling/state-sync; `eval` still works but state is frozen. Connect with `connect({ activate: '<App Name>' })` so the window is foregrounded before asserting.
 - **`eval` can't return a Promise** — trigger async work, then read the result in a second `eval` after a beat. And an eval that returns `undefined` (e.g. an arrow body with braces and no `return`) HANGS the request until timeout — always return something JSON-serializable.
 - **One driver at a time** — two clients driving the same app concurrently (a background probe plus an ad-hoc script) interleave their clicks/evals and corrupt both runs.
 - **Synthetic clicks lie about click-handler cost** — frameworks that render synchronously inside *trusted* discrete events (React) defer their commit for a dispatched `.click()`, so a bridge click measuring "1ms" says nothing about the real click's cost. Verify interaction-latency work with a native inspector Timeline recording of physical clicks.
 - **`eval` errors are invisible on WebView2** (a failure looks like `null`) — rely on the `logs`/error stream there.
-- **`shot`** captures the window via the OS compositor, so WebGL/canvas IS included (unlike in-webview snapshots). On macOS 14+ it needs Screen Recording permission; on Windows 11 it uses Windows.Graphics.Capture and needs a compositor-capturable, non-minimized window. Linux capture is a TODO. Pass a selector (CLI) or `clip`/`locator.screenshot()` (e2e) to crop to a region — a much smaller PNG, so prefer it over full-window shots to save tokens.
+- **`shot`** captures the window via the OS compositor, so WebGL/canvas IS included (unlike in-webview snapshots). On Windows 11 it uses Windows.Graphics.Capture and needs a compositor-capturable, non-minimized window. Linux capture is a TODO. Pass a selector (CLI) or `clip`/`locator.screenshot()` (e2e) to crop to a region — a much smaller PNG, so prefer it over full-window shots to save tokens.
+- **macOS `-3801` is a permission state, not a UI bug.** `shot` needs the host app to hold Screen Recording, keyed to its code signature, so an ad-hoc Debug build loses it on every rebuild. On `-3801`: stop capturing, tell the user to grant it (and to sign builds with a stable identity), and keep verifying through DOM, bounds and `backend()` meanwhile. `ping`/`hello` succeeding says nothing about this grant. Full checklist: `docs/screen-recording.md`.
 
-Full wire protocol, discovery internals, integration steps, and limits: the module's `README.md`.
+Reference in the driver's repo: `README.md` (install, integration, limits), `docs/e2e.md` (full e2e API), `docs/protocol.md` (wire protocol, discovery), `docs/screen-recording.md` (macOS capture setup), `examples/demo-plugin` (working host + test).
