@@ -6,26 +6,44 @@
 
 ![Automated test clicking a control in a live JUCE WebView plugin UI](https://raw.githubusercontent.com/mateusz28011/juce-webview-driver/main/docs/social-preview.png)
 
-A **debug-only** JUCE module that lets an external agent (or script) drive a live
-`juce::WebBrowserComponent` over a loopback TCP socket — a "mini-CDP" giving you a
-browser-like toolkit on the **real** embedded WebView:
+End-to-end tests and debugging for the **real** WebView UI of a running JUCE plugin
+or app.
 
-- **eval** arbitrary JavaScript and read the result;
-- **stream** `console.*`, uncaught errors, and network — `fetch`/`XHR`,
-  `WebSocket` / `EventSource` (SSE) frames, `navigator.sendBeacon`, plus
-  `PerformanceObserver` resource timing;
-- **DOM / click / fill** (React-safe synthetic input);
-- **screenshot** the host window — or a cropped UI region — via the OS compositor
-  (captures WebGL/canvas, which in-WebView snapshot APIs can miss) on **macOS and
-  Windows 11**; Linux capture is a TODO.
+A JUCE WebView frontend is usually tested in a separate browser, against a mocked
+backend. That copy has none of the plugin's real state, timing or native rendering,
+so the bugs that matter (a control that doesn't reach the C++ parameter, a preset
+that loads wrong, a WebGL view that draws nothing) never show up there.
+`juce_webview_driver` is a **debug-only** JUCE module plus a zero-dependency Node
+client that drives the live `juce::WebBrowserComponent` inside your running plugin,
+so a test can do this:
 
-No Chrome DevTools Protocol is required. **WKWebView** (macOS) exposes no CDP at all
-for an embedded view; **WebView2** (Windows) can expose CDP, but only behind a
-remote-debugging flag you don't want in a shipping build. This bridge gives you one
-path that works the same on both without depending on that flag —
-eval/console/network/DOM ride on `evaluateJavascript`, which every JUCE backend
-already provides. macOS is the daily-use platform; Windows/WebView2 has also been
-verified against the home project's real Debug standalone. See **Status** below.
+```js
+import { connect, expect } from 'juce-webview-driver';
+
+const page = await connect();
+await page.getByTestId('gain').fill(0.25);                    // the real UI
+await expect.poll(() => page.backend('getGain')).toBe(0.25);  // the real C++ state
+await page.getByTestId('meter').screenshot();                 // the real pixels, WebGL included
+```
+
+What you get on the live WebView:
+
+- **DOM actions and assertions:** CSS/text/role locators, click/fill/type/drag,
+  auto-waiting `expect`, accessibility snapshots;
+- **C++ state:** call your `withNativeFunction` functions with `page.backend(...)`
+  and assert on what the plugin actually did;
+- **screenshots** of the window or one element through the OS compositor, so
+  WebGL/canvas is included (**macOS 14+ and Windows 11**; Linux is a TODO);
+- **observability:** `console.*`, uncaught errors, and network (`fetch`/XHR,
+  WebSocket, SSE, `sendBeacon`, resource timing) streamed live, plus `eval` of
+  any JavaScript.
+
+It works the same on **WKWebView** (macOS) and **WebView2** (Windows), with no
+Chrome DevTools Protocol and no remote-debugging flag: everything rides on JUCE's
+own `evaluateJavascript` and native functions.
+
+The same client also makes the running UI usable by **AI coding agents**: a
+[skill](#agent-skill) teaches an agent to inspect and drive it while it debugs.
 
 > ⚠️ **Security.** The bridge evaluates arbitrary JS. Access is gated only by the
 > loopback (`127.0.0.1`) bind plus a per-session token — and the token sits in
@@ -34,23 +52,31 @@ verified against the home project's real Debug standalone. See **Status** below.
 > gated to `JUCE_DEBUG` by default (`WEBVIEW_DRIVER_ENABLED`). **Never ship it
 > enabled in a release build.**
 
+## Try it
+
+[`examples/demo-plugin`](examples/demo-plugin) is a minimal JUCE 9 plugin with a
+WebView UI and a test that moves its slider, checks the parameter in C++, and
+takes a native screenshot of a WebGL meter. Build it, start it, run the test —
+no changes to your own project needed.
+
 ## Why
 
 This started in *Better Message Mycelia*, a JUCE app with a dense React +
 PixiJS/WebGL plugin UI. A browser copy could not reproduce native state or timing,
-WKWebView had no CDP, and in-page screenshots missed GPU content. The bridge made
-the running plugin observable and controllable, which enabled:
+WKWebView had no CDP, and in-page screenshots missed GPU content. Driving the
+running plugin instead made it possible to:
 
-- agent debugging against the real UI and C++ engine;
-- live e2e tests for controls, presets and native state;
-- performance probes using event streams and rAF frame-gap measurements.
+- run live e2e tests for controls, presets and native state;
+- debug against the real UI and C++ engine, by hand or with an agent;
+- probe performance using event streams and rAF frame-gap measurements.
 
 ### Why not just Playwright?
 
-Playwright cannot attach to WKWebView and needs an explicitly enabled CDP endpoint
-for WebView2. This bridge instead uses JUCE's existing `evaluateJavascript` and
-native-function surfaces. It can also capture compositor-rendered WebGL and assert
-on real C++ state through `backend()`.
+On Windows, Playwright can attach to WebView2, but only through a CDP endpoint you
+have to enable with a remote-debugging flag. On macOS, WKWebView exposes no CDP at
+all, so Playwright cannot attach. This driver gives you one API on both, and adds
+what a browser tool can't see: your plugin's C++ state through `backend()`, and
+compositor screenshots that include WebGL.
 
 It is not a Playwright replacement: input is synthetic, network is observe-only,
 and there is one page. You can still use the `@playwright/test` runner as a harness;
@@ -65,18 +91,12 @@ Honest test coverage, so you know what you're getting:
 | eval / console / network / DOM / e2e | ✅ used daily against a real plugin | ✅ verified against a real WebView2 Debug standalone | ⚠️ untested against a real app |
 | Native screenshot (`shot`) | ✅ (macOS 14+, ScreenCaptureKit) | ✅ (Windows 11, Windows.Graphics.Capture + D3D11) | ❌ TODO |
 | C++ + JS test suites | ✅ CI | ✅ CI | ✅ CI |
+| Demo plugin | ✅ builds and passes its test | ✅ builds in CI | ✅ builds in CI |
 
 The Windows real-app verification covers discovery/auth, Unicode eval, console and
 fetch capture, DOM locators, React-safe fill/click, accessibility snapshots, large
 chunked reads, sink replay, and native full-window/region screenshots. WebKit layer
 inspection remains macOS-only. Linux real-app reports and fixes are very welcome.
-
-## Try it
-
-[`examples/demo-plugin`](examples/demo-plugin) is a minimal JUCE 9 plugin with a
-WebView UI and a test that moves its slider, checks the parameter in C++, and
-takes a native screenshot of a WebGL meter. Build it, start it, run the test —
-no changes to your own project needed.
 
 ## Install
 
