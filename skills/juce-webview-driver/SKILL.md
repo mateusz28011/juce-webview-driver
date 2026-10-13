@@ -25,6 +25,8 @@ driver->start();                                                     // 127.0.0.
 driver->stop();                                                      // in the destructor, before the WebView dies
 ```
 
+On macOS, set up stable signing at the same time: native screenshots need Screen Recording, macOS keys that grant to the app's code signature, and the default ad-hoc Debug signature changes on every rebuild. Add a `POST_BUILD` step that re-signs the Standalone with a fixed self-signed Code Signing identity (the demo's `CMakeLists.txt` has one, driven by `LOCAL_CODESIGN_IDENTITY`), and launch the `.app` through LaunchServices (`open`), not its inner binary.
+
 Register C++ state the tests need as `withNativeFunction`s (e.g. `getGain`/`setGain`); tests reach them with `page.backend(...)`. `examples/demo-plugin` in the driver's repo is the complete reference: a JUCE 9 plugin with a slider relay, two native functions, a page readiness flag, a test, and macOS stable signing.
 
 ## Connecting
