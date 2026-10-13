@@ -5,12 +5,15 @@ commit comparisons are available from the linked GitHub Releases.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-13
+
 ### Added
 
 - `examples/demo-plugin`: a minimal JUCE 9 WebView plugin with an end-to-end test
   that drives its slider, checks the C++ parameter both ways, and screenshots a
   WebGL meter. On macOS it can re-sign each build with a stable local identity
   (`LOCAL_CODESIGN_IDENTITY`) so the Screen Recording grant survives rebuilds.
+- The module builds against JUCE 9 (verified with 9.0.4); JUCE 8 remains supported.
 
 ### Changed
 
@@ -306,7 +309,8 @@ There are no package API changes in this release.
 - Zero-dependency CLI, Playwright-shaped E2E client, agent skill, and standalone
   JavaScript and C++ test suites.
 
-[Unreleased]: https://github.com/mateusz28011/juce-webview-driver/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/mateusz28011/juce-webview-driver/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.8.0
 [0.7.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.7.0
 [0.6.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.6.0
 [0.5.2]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.5.2
