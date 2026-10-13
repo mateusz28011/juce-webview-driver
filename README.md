@@ -116,7 +116,7 @@ or with CMake `FetchContent` (after JUCE has been added, so
 include(FetchContent)
 FetchContent_Declare(juce_webview_driver
     GIT_REPOSITORY https://github.com/mateusz28011/juce-webview-driver.git
-    GIT_TAG        v0.8.0)
+    GIT_TAG        v0.8.1)
 FetchContent_MakeAvailable(juce_webview_driver)
 ```
 
