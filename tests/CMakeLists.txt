@@ -14,7 +14,7 @@
 #     cmake -S tests -B build/test -DWVD_JUCE_DIR=/path/to/JUCE
 # ==============================================================================
 cmake_minimum_required(VERSION 3.22)
-project(webview_driver_tests VERSION 0.7.0 LANGUAGES C CXX)
+project(webview_driver_tests VERSION 0.8.0 LANGUAGES C CXX)
 
 include(FetchContent)
 

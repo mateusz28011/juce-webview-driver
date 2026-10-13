@@ -1,6 +1,6 @@
 {
   "name": "juce-webview-driver",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Typed, zero-dependency E2E client and CLI for driving live JUCE WebViews over a debug-only loopback bridge, without CDP.",
   "keywords": [
     "juce",
