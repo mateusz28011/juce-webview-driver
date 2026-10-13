@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebView Driver Demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; height: 100vh; display: grid; place-items: center;
+      background: #0d1117; color: #e6edf3;
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: 320px; display: grid; gap: 16px; }
+    h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    label { display: flex; justify-content: space-between; color: #8b949e; }
+    output { color: #e6edf3; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; accent-color: #2dd4bf; }
+    canvas { width: 100%; height: 80px; border-radius: 8px; background: #161b22; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>WebView Driver Demo</h1>
+    <label for="gain">Gain <output data-testid="gain-value">0.50</output></label>
+    <input id="gain" data-testid="gain" type="range" min="0" max="1" step="0.01" value="0.5">
+    <!-- WebGL, so a native screenshot of it proves the compositor capture works. -->
+    <canvas data-testid="meter" width="640" height="160"></canvas>
+  </main>
+
+  <script type="module">
+    import { getSliderState } from "./juce/index.js";
+
+    const gain = getSliderState("gain");
+    const input = document.getElementById("gain");
+    const label = document.querySelector("[data-testid=gain-value]");
+
+    // UI -> C++: the relay forwards the value to the APVTS parameter. Every change
+    // sits inside a begin/end gesture, as hosts expect for automation recording:
+    // a pointer drag is one gesture, a keyboard or programmatic edit its own.
+    let dragging = false;
+    input.addEventListener("pointerdown", () => { dragging = true; gain.sliderDragStarted(); });
+    const endDrag = () => { if (dragging) { dragging = false; gain.sliderDragEnded(); } };
+    input.addEventListener("pointerup", endDrag);
+    input.addEventListener("pointercancel", endDrag);
+    input.addEventListener("input", () => {
+      if (!dragging) gain.sliderDragStarted();
+      gain.setNormalisedValue(Number(input.value));
+      if (!dragging) gain.sliderDragEnded();
+    });
+
+    // C++ -> UI: any parameter change (host automation, setGain) updates the page.
+    gain.valueChangedEvent.addListener(render);
+
+    const meter = document.querySelector("canvas");
+    const gl = meter.getContext("webgl");
+
+    function render() {
+      const value = gain.getNormalisedValue();
+      input.value = value;
+      label.textContent = value.toFixed(2);
+      if (!gl) return;
+
+      // A teal bar whose width follows the gain, drawn with scissor + clear.
+      const { width, height } = gl.canvas;
+      gl.disable(gl.SCISSOR_TEST);
+      gl.clearColor(0.086, 0.106, 0.133, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(0, 0, Math.round(width * value), height);
+      gl.clearColor(0.176, 0.831, 0.749, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      meter.dataset.rendered = "true";
+    }
+
+    render();
+    // Handlers are attached; tests wait for this before interacting.
+    document.documentElement.dataset.ready = "true";
+  </script>
+</body>
+</html>

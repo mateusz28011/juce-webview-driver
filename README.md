@@ -71,9 +71,16 @@ fetch capture, DOM locators, React-safe fill/click, accessibility snapshots, lar
 chunked reads, sink replay, and native full-window/region screenshots. WebKit layer
 inspection remains macOS-only. Linux real-app reports and fixes are very welcome.
 
+## Try it
+
+[`examples/demo-plugin`](examples/demo-plugin) is a minimal JUCE 9 plugin with a
+WebView UI and a test that moves its slider, checks the parameter in C++, and
+takes a native screenshot of a WebGL meter. Build it, start it, run the test —
+no changes to your own project needed.
+
 ## Install
 
-**Requirements:** JUCE 8, C++17, a `juce::WebBrowserComponent`-based UI; the
+**Requirements:** JUCE 8 or 9, C++17, a `juce::WebBrowserComponent`-based UI; the
 clients need Node ≥ 22 (zero runtime dependencies).
 
 It's a standard JUCE module. Get the repo — as a submodule:
