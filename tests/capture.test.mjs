@@ -4,7 +4,7 @@
  * Zero-dependency: the script is a C++ raw-string literal, so we slice the JS out
  * of the header and run it under a hand-rolled browser-ish sandbox (node:vm) with
  * stubbed window/console/performance/fetch/XMLHttpRequest/WebSocket/EventSource/
- * navigator. The script forwards every captured event to the native "__webAgentSink"
+ * navigator. The script forwards every captured event to the native "__webviewDriverSink"
  * function via window.__JUCE__.backend.emitEvent — we record those payloads and
  * assert on them. No JUCE host and no real DOM required (so it keeps working after
  * the module is extracted into its own repo).
@@ -16,14 +16,14 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const HEADER = fileURLToPath(new URL('../juce_webview_agent_bridge/detail/CaptureScript.h', import.meta.url));
+const HEADER = fileURLToPath(new URL('../juce_webview_driver/detail/CaptureScript.h', import.meta.url));
 
-// Slice the injected JS out of the `R"WEBAGENTJS( ... )WEBAGENTJS"` raw literal.
+// Slice the injected JS out of the `R"WVDJS( ... )WVDJS"` raw literal.
 function extractScript() {
   const src = fs.readFileSync(HEADER, 'utf8');
-  const open = 'R"WEBAGENTJS(';
+  const open = 'R"WVDJS(';
   const start = src.indexOf(open);
-  const end = src.indexOf(')WEBAGENTJS"');
+  const end = src.indexOf(')WVDJS"');
   assert.ok(start >= 0 && end > start, 'capture-script raw-literal markers not found');
   return src.slice(start + open.length, end);
 }
@@ -34,7 +34,7 @@ function fakeResponse(status, body) {
 }
 
 // Build a sandbox, install the capture script into it, and return handles to drive
-// it. `sink` accrues every record the script sends to __webAgentSink.
+// it. `sink` accrues every record the script sends to __webviewDriverSink.
 function install({ capture = false, withFetch = false, withXHR = false, withWS = false, withES = false, withBeacon = false, fetchResp = fakeResponse(200, 'BODY'), fetchReject = null, xhr = {}, hooks = null } = {}) {
   const sink = [];
   const chained = []; // calls that reached the ORIGINAL console (proves the patch chains)
@@ -42,11 +42,11 @@ function install({ capture = false, withFetch = false, withXHR = false, withWS =
   const observers = [];
   const win = {};
   win.window = win;
-  win.__webAgentCapture = capture;
+  win.__webviewDriverCapture = capture;
   win.__JUCE__ = {
     backend: {
       emitEvent(name, payload) {
-        if (name === '__juce__invoke' && payload && payload.name === '__webAgentSink') sink.push(payload.params[0]);
+        if (name === '__juce__invoke' && payload && payload.name === '__webviewDriverSink') sink.push(payload.params[0]);
       },
     },
   };
@@ -100,24 +100,24 @@ function install({ capture = false, withFetch = false, withXHR = false, withWS =
     win._beacons = beacons;
   }
 
-  if (hooks) win.__webAgentCaptureHooks = hooks; // withCapture publishes this to select hooks
+  if (hooks) win.__webviewDriverCaptureHooks = hooks; // withCapture publishes this to select hooks
 
   const ctx = vm.createContext(win);
   vm.runInContext(SCRIPT, ctx, { filename: 'CaptureScript.h' });
-  // Drop the synthetic "[web_agent] capture installed" line so tests assert on real events.
-  const real = () => sink.filter((r) => !(r.kind === 'console' && (r.data.args || [])[0] === '[web_agent] capture installed'));
+  // Drop the synthetic "[webview_driver] capture installed" line so tests assert on real events.
+  const real = () => sink.filter((r) => !(r.kind === 'console' && (r.data.args || [])[0] === '[webview_driver] capture installed'));
   return { win, sink, real, observers, chained };
 }
 
 test('the script installs once (idempotent) and announces itself', () => {
   const env = install();
-  assert.equal(env.win.__webAgentInstalled, true);
-  assert.ok(env.sink.some((r) => r.kind === 'console' && (r.data.args || [])[0] === '[web_agent] capture installed'), 'announce line sent');
-  assert.ok(Array.isArray(env.win.__webAgentBuffer), 'ring buffer created');
+  assert.equal(env.win.__webviewDriverInstalled, true);
+  assert.ok(env.sink.some((r) => r.kind === 'console' && (r.data.args || [])[0] === '[webview_driver] capture installed'), 'announce line sent');
+  assert.ok(Array.isArray(env.win.__webviewDriverBuffer), 'ring buffer created');
   // a second run is a no-op (guard), so the buffer/sink length does not change.
-  const before = env.win.__webAgentBuffer.length;
+  const before = env.win.__webviewDriverBuffer.length;
   vm.runInContext(SCRIPT, env.win, { filename: 'CaptureScript.h' });
-  assert.equal(env.win.__webAgentBuffer.length, before, 'second install is a guarded no-op');
+  assert.equal(env.win.__webviewDriverBuffer.length, before, 'second install is a guarded no-op');
 });
 
 test('console.* is patched: forwards level + stringified args and chains to the original', () => {

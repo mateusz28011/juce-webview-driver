@@ -28,7 +28,7 @@ const DEFAULT_OPS = ['hello', 'ping', 'auth', 'eval', 'eval_big', 'bounds', 'sho
 // Returned from onEval to make the mock never answer that eval (a stalled host).
 const HANG = Symbol('hang');
 
-// The host's eval_big value contract (WebAgentBridge.cpp handleEvalBig):
+// The host's eval_big value contract (WebViewDriver.cpp handleEvalBig):
 // undefined/null -> ''; string as-is; else JSON.stringify, undefined -> ''.
 function hostString(v) {
   if (v == null) return '';
@@ -113,7 +113,7 @@ function startMock({ onEval, onEvalBig, onShot, onShotStream, onLayerTree, hello
           continue;
         }
         if (m.op === 'shot') {
-          const r = onShot ? onShot(m) : { ok: true, path: m.path || '/tmp/web-agent-shot.png' };
+          const r = onShot ? onShot(m) : { ok: true, path: m.path || '/tmp/webview-driver-shot.png' };
           reply({ op: 'shot', ...r });
           continue;
         }
@@ -164,7 +164,7 @@ test('connect authenticates and injects the page helpers once', async () => {
   try {
     const page = await openPage(port);
     assert.equal(state.token, 'T');
-    assert.ok(state.evals.some((c) => c.includes('window.__wae =')), 'helper bundle injected');
+    assert.ok(state.evals.some((c) => c.includes('window.__wvd =')), 'helper bundle injected');
     page.close();
   } finally { server.close(); }
 });
@@ -172,7 +172,7 @@ test('connect authenticates and injects the page helpers once', async () => {
 test('locator.click auto-waits for the element, then clicks once stable', async () => {
   let probes = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { probes++; return probes >= 2 ? found() : missing(); }
     return 'ok'; // click action
   };
@@ -198,7 +198,7 @@ test('locator.click rejects with a descriptive timeout when never actionable', a
 test('locator.fill emits a React-safe native value setter + input/change dispatch', async () => {
   let action = null;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found({ editable: true, text: '' });
     action = code; return 'ok';
   };
@@ -220,7 +220,7 @@ test('locator.fill emits a React-safe native value setter + input/change dispatc
 test('expect(locator).toHaveText polls until the text matches', async () => {
   let probes = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { probes++; return found({ text: probes >= 2 ? 'Ready' : 'Loading' }); }
     return 'ok';
   };
@@ -246,7 +246,7 @@ test('expect(locator).toHaveCount matches the resolved count', async () => {
 test('selectors (text= / role= / css) reach the page resolver verbatim', async () => {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { seen.push(code); return found(); }
     return 'ok';
   };
@@ -270,11 +270,11 @@ function chunkResponder(getValue) {
   const bufs = new Map();
   return (code, _state, ctx) => {
     if (ctx && ctx.big) return getValue();
-    let m = code.match(/__wae\.bigInit\("([^"]+)"/);
+    let m = code.match(/__wvd\.bigInit\("([^"]+)"/);
     if (m) { const s = hostString(getValue()); bufs.set(m[1], s); return s.length; }
-    m = code.match(/__wae\.bigAt\("([^"]+)", (\d+), (\d+)\)/);
+    m = code.match(/__wvd\.bigAt\("([^"]+)", (\d+), (\d+)\)/);
     if (m) { const s = bufs.get(m[1]); return s == null ? null : hostSlice(s, +m[2], +m[3]); }
-    m = code.match(/__wae\.bigFree\("([^"]+)"\)/);
+    m = code.match(/__wvd\.bigFree\("([^"]+)"\)/);
     if (m) { bufs.delete(m[1]); return 1; }
     return undefined;
   };
@@ -282,7 +282,7 @@ function chunkResponder(getValue) {
 
 // A "page" that really runs the injected snippets: PAGE_HELPERS under node:vm, and
 // every eval code executed in that context. Pins the client's generated JS end to
-// end (syntax, the __wae contract) instead of pattern-matching strings.
+// end (syntax, the __wvd contract) instead of pattern-matching strings.
 function vmPage(globals = {}) {
   const ctx = vm.createContext({ ...globals });
   ctx.window = ctx;
@@ -296,9 +296,9 @@ test('backend() invokes a native fn, polls completion, returns the parsed result
   let polls = 0;
   const chunk = chunkResponder(() => JSON.stringify(result));
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__wae.invoke(')) return 700;
-    if (code.includes('__wae.callDone(')) { polls++; return polls >= 2 ? 1 : 0; }
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvd.invoke(')) return 700;
+    if (code.includes('__wvd.callDone(')) { polls++; return polls >= 2 ? 1 : 0; }
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
   };
@@ -314,9 +314,9 @@ test('backend() invokes a native fn, polls completion, returns the parsed result
 
 test('backend() honors a custom backendTimeoutMs', async () => {
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__wae.invoke(')) return 700;
-    if (code.includes('__wae.callDone(')) return 0; // completion never arrives
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvd.invoke(')) return 700;
+    if (code.includes('__wvd.callDone(')) return 0; // completion never arrives
     return 'ok';
   };
   const { server, port } = await startMock({ onEval });
@@ -334,8 +334,8 @@ test('readBig() reassembles a value larger than the chunk size', async () => {
   let chunkCalls = 0;
   const chunk = chunkResponder(() => big);
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__wae.bigAt(')) chunkCalls++;
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvd.bigAt(')) chunkCalls++;
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
   };
@@ -357,7 +357,7 @@ test('page.ariaSnapshot reads a structured role/name tree via readBig', async ()
   const snap = JSON.stringify([{ role: 'button', name: 'Save' }, { role: 'textbox', name: 'Email', value: 'a@b.c' }]);
   const chunk = chunkResponder(() => snap);
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
   };
@@ -374,7 +374,7 @@ test('locator.ariaSnapshot snapshots a subtree after waiting for visibility', as
   const snap = JSON.stringify({ role: 'form', children: [{ role: 'button', name: 'Go' }] });
   const chunk = chunkResponder(() => snap);
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found();
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
@@ -390,19 +390,19 @@ test('locator.ariaSnapshot snapshots a subtree after waiting for visibility', as
 
 test('fireBackend fires a native fn name + params without awaiting', async () => {
   let fired = null;
-  const onEval = (code) => { if (code.includes('__wae.fire(')) { fired = code; return true; } return 'ok'; };
+  const onEval = (code) => { if (code.includes('__wvd.fire(')) { fired = code; return true; } return 'ok'; };
   const { server, port } = await startMock({ onEval });
   try {
     const page = await openPage(port);
     await page.fireBackend('simX', 1, 2, true);
-    assert.match(fired, /__wae\.fire\("simX", \[1,2,true\]\)/);
+    assert.match(fired, /__wvd\.fire\("simX", \[1,2,true\]\)/);
   } finally { server.close(); }
 });
 
 test('getByTestId builds a [data-testid="..."] selector', async () => {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { seen.push(code); return found(); }
     return 'ok';
   };
@@ -417,7 +417,7 @@ test('getByTestId builds a [data-testid="..."] selector', async () => {
 test('nth(i) passes the index to the page-side picker', async () => {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { seen.push(code); return found(); }
     return 'ok';
   };
@@ -432,7 +432,7 @@ test('nth(i) passes the index to the page-side picker', async () => {
 test('drag presses, moves across the document, and releases (mouse sequence)', async () => {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found(); // visible + enabled, box at origin
     if (code.includes("MouseEvent('mousedown'") || code.includes("MouseEvent('mousemove'")
         || code.includes("MouseEvent('mouseup'")) { seen.push(code); return 'ok'; }
@@ -452,9 +452,9 @@ test('drag presses, moves across the document, and releases (mouse sequence)', a
 
 test('connect({log}) reports each action as a concise line', async () => {
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found();
-    if (code.includes('__wae.fire(')) return true;
+    if (code.includes('__wvd.fire(')) return true;
     return 'ok';
   };
   const { server, port } = await startMock({ onEval });
@@ -469,7 +469,7 @@ test('connect({log}) reports each action as a concise line', async () => {
 });
 
 test('fileLogger appends timestamped lines to one file', () => {
-  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wae-log-')), 'agent.log');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-log-')), 'agent.log');
   const log = fileLogger(f, { echo: false });
   log('click [data-testid="x"]');
   log('backend loadPreset("a")');
@@ -596,7 +596,7 @@ test('a transport failure during the handshake fails loudly, not into silent no-
 test('a rejected page-helper injection fails connect() and closes the socket', async () => {
   // Left unchecked this returns a Page whose every locator then fails cryptically.
   const { server, state, port } = await startMock({
-    onEval: (code) => { if (code.includes('window.__wae =')) throw new Error('auth required'); return 'ok'; },
+    onEval: (code) => { if (code.includes('window.__wvd =')) throw new Error('auth required'); return 'ok'; },
   });
   try {
     await assert.rejects(() => openPage(port), /bridge rejected the page helpers: .*auth required/);
@@ -702,16 +702,16 @@ test('readBig uses the native eval_big op when the host advertises it', async ()
     const page = await openPage(port);
     const out = await page.readBig('window.bigState');
     assert.equal(out, big, 'gets the full native result in one request');
-    // PAGE_HELPERS defines W.bigInit, so match the fallback CALL (window.__wae.bigInit(...)).
-    assert.ok(!state.evals.some((c) => c.includes('__wae.bigInit(')), 'did not fall back to the __wae chunk loop');
+    // PAGE_HELPERS defines W.bigInit, so match the fallback CALL (window.__wvd.bigInit(...)).
+    assert.ok(!state.evals.some((c) => c.includes('__wvd.bigInit(')), 'did not fall back to the __wvd chunk loop');
     page.close();
   } finally { server.close(); }
 });
 
-test('readBig falls back to the __wae chunk loop on a host without eval_big', async () => {
+test('readBig falls back to the __wvd chunk loop on a host without eval_big', async () => {
   const onEval = (code) => {
-    if (code.includes('__wae.bigInit(')) return 5;
-    if (code.includes('__wae.bigAt(')) return 'HELLO';
+    if (code.includes('__wvd.bigInit(')) return 5;
+    if (code.includes('__wvd.bigAt(')) return 'HELLO';
     return 'ok';
   };
   const { server, port, state } = await startMock({
@@ -722,7 +722,7 @@ test('readBig falls back to the __wae chunk loop on a host without eval_big', as
     const page = await openPage(port);
     const out = await page.readBig('window.x');
     assert.equal(out, 'HELLO');
-    assert.ok(state.evals.some((c) => c.includes('__wae.bigInit(')), 'used the client-side chunk fallback');
+    assert.ok(state.evals.some((c) => c.includes('__wvd.bigInit(')), 'used the client-side chunk fallback');
     page.close();
   } finally { server.close(); }
 });
@@ -730,7 +730,7 @@ test('readBig falls back to the __wae chunk loop on a host without eval_big', as
 test('waitForFunction polls a page expression until it is truthy', async () => {
   let n = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('ready')) { n++; return n >= 3; } // false, false, true
     return 'ok';
   };
@@ -842,7 +842,7 @@ test('parseLayerTree extracts every layer bounds entry, incl. negative/fractiona
 test('locator.screenshot crops to the element box', async () => {
   let shotMsg = null;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found({ box: { x: 5, y: 6, w: 70, h: 80 } });
     return 'ok';
   };
@@ -862,7 +862,7 @@ test('locator.screenshot crops to the element box', async () => {
 function actionMock(over) {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found(over);
     seen.push(code); return 'ok';
   };
@@ -965,7 +965,7 @@ test('focus sends el.focus()', async () => {
 test('expect(locator).toHaveValue polls the input value', async () => {
   let probes = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { probes++; return found({ value: probes >= 2 ? '128' : '' }); }
     return 'ok';
   };
@@ -1031,7 +1031,7 @@ test('expect.poll treats a throwing fn as not-yet', async () => {
 test('page.poll returns the value once pred holds, without throwing', async () => {
   let reads = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('JSON.stringify((\nwindow.someCounter\n)')) return String(++reads);
     return 'ok';
   };
@@ -1046,7 +1046,7 @@ test('page.poll returns the value once pred holds, without throwing', async () =
 
 test('page.poll returns the LAST value on timeout (caller asserts on it)', async () => {
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('JSON.stringify(')) return '7';
     return 'ok';
   };
@@ -1063,7 +1063,7 @@ test('page.pollStable waits until consecutive reads settle on one value', async 
   const ramp = [1, 2, 3, 4, 4, 4, 4, 4, 4, 4];
   let i = 0;
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('JSON.stringify(')) return String(ramp[Math.min(i++, ramp.length - 1)]);
     return 'ok';
   };
@@ -1085,8 +1085,8 @@ test('measureRenderPerf installs the probe, then returns parsed stats (motion vi
   const chunk = chunkResponder(() => JSON.stringify(stats));
   let installed = 0;
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__waePerfProbe=J')) { installed++; assert.ok(code.includes('.knob path'), 'motionSelector reached the probe'); return 1; }
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvdPerfProbe=J')) { installed++; assert.ok(code.includes('.knob path'), 'motionSelector reached the probe'); return 1; }
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
   };
@@ -1109,7 +1109,7 @@ test('activateApp resolves false without an app name (and off-macOS)', async () 
 // ---- quality-review regressions ------------------------------------------------
 
 test('mock ops mirror the C++ kOpTable (the mock cannot drift from the host)', () => {
-  const cpp = fs.readFileSync(new URL('../juce_webview_agent_bridge/detail/WebAgentBridge.cpp', import.meta.url), 'utf8');
+  const cpp = fs.readFileSync(new URL('../juce_webview_driver/detail/WebViewDriver.cpp', import.meta.url), 'utf8');
   // Parse `{ "opname", &Impl::handler }` entries from the table definition, sized or
   // not; platform-gated entries (#if around a row) still count — compare the full table.
   const at = cpp.search(/kOpTable\s*\[\s*\d*\s*\]\s*=?\s*\{/);
@@ -1123,7 +1123,7 @@ test('mock ops mirror the C++ kOpTable (the mock cannot drift from the host)', (
 test('pointer actions scroll the target into view inside the actionability probe', async () => {
   const probes = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) { probes.push(code); return found({ editable: true }); }
     return 'ok';
   };
@@ -1187,7 +1187,7 @@ test('readBig: host value contract + surrogate-safe chunking, identical on both 
         // chunk:3 puts a slice boundary right after 'ab' + a high surrogate.
         assert.equal(await page.readBig(expr, { chunk: 3 }), want, `${native ? 'eval_big' : 'fallback'}: ${expr}`);
       }
-      assert.deepEqual(Object.keys(ctx.__wae._big), [], 'fallback buffers are freed after each read');
+      assert.deepEqual(Object.keys(ctx.__wvd._big), [], 'fallback buffers are freed after each read');
     } finally { server.close(); }
   }
 });
@@ -1203,17 +1203,17 @@ test('readBig fallback reads are keyed: concurrent reads do not clobber each oth
   } finally { server.close(); }
 });
 
-test('after a page reload wipes window.__wae, the helpers self-heal (re-inject + retry)', async () => {
+test('after a page reload wipes window.__wvd, the helpers self-heal (re-inject + retry)', async () => {
   const emitted = [];
   const { ctx, onEval } = vmPage({ __JUCE__: { backend: { emitEvent: (n, p) => emitted.push(p.name), addEventListener() {} } } });
   const { server, state, port } = await startMock({ onEval });
   try {
     const page = await openPage(port);
-    vm.runInContext("delete window.__wae", ctx); // simulate a reload
+    vm.runInContext("delete window.__wvd", ctx); // simulate a reload
     assert.equal(await page.fireBackend('doThing'), true);
     assert.deepEqual(emitted, ['doThing']);
-    assert.equal(state.evals.filter((c) => c.includes('window.__wae = W')).length, 2, 're-injected exactly once');
-    vm.runInContext("delete window.__wae", ctx);
+    assert.equal(state.evals.filter((c) => c.includes('window.__wvd = W')).length, 2, 're-injected exactly once');
+    vm.runInContext("delete window.__wvd", ctx);
     assert.equal(await page.readBig('"after reload"'), 'after reload');
   } finally { server.close(); }
 });
@@ -1290,14 +1290,14 @@ test('onJsonLines: reassembles split lines, surfaces bad lines, caps line length
 });
 
 test('loadDiscovery: a preferred port never falls back to another instance', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-disc-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-disc-'));
   const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
   process.env.HOME = home; process.env.USERPROFILE = home;
   try {
-    const d = path.join(home, '.web_agent_bridge.d');
+    const d = path.join(home, '.juce_webview_driver.d');
     fs.mkdirSync(d);
     fs.writeFileSync(path.join(d, '9001.json'), JSON.stringify({ port: 9001, token: 'A', pid: process.pid }));
-    fs.writeFileSync(path.join(home, '.web_agent_bridge.json'), JSON.stringify({ port: 9100, token: 'LEGACY' }));
+    fs.writeFileSync(path.join(home, '.juce_webview_driver.json'), JSON.stringify({ port: 9100, token: 'LEGACY' }));
     assert.equal(loadDiscovery(9001).token, 'A');
     assert.deepEqual(loadDiscovery(9002), {}, 'unregistered port -> {} (not instance 9001, not the legacy file)');
     assert.equal(loadDiscovery(9100).token, 'LEGACY', 'the legacy file still serves its own port');
@@ -1309,12 +1309,12 @@ test('loadDiscovery: a preferred port never falls back to another instance', () 
 });
 
 test('listInstances skips records whose host process is gone', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-disc-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-disc-'));
   const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
   process.env.HOME = home; process.env.USERPROFILE = home;
   try {
     const deadPid = spawnSync(process.execPath, ['-e', '']).pid; // exited by the time spawnSync returns
-    const d = path.join(home, '.web_agent_bridge.d');
+    const d = path.join(home, '.juce_webview_driver.d');
     fs.mkdirSync(d);
     fs.writeFileSync(path.join(d, '9001.json'), JSON.stringify({ port: 9001, token: 'STALE', pid: deadPid }));
     fs.writeFileSync(path.join(d, '9002.json'), JSON.stringify({ port: 9002, token: 'LIVE', pid: process.pid }));
@@ -1353,7 +1353,7 @@ test('type() accepts a number', async () => {
 });
 
 test('locator waits honor their timeout even when the host stalls a probe', async () => {
-  const onEval = (code) => (code.includes('window.__wae =') ? 'ok' : code.includes('resolveAll') ? HANG : 'ok');
+  const onEval = (code) => (code.includes('window.__wvd =') ? 'ok' : code.includes('resolveAll') ? HANG : 'ok');
   const { server, port } = await startMock({ onEval });
   try {
     const page = await openPage(port);
@@ -1366,7 +1366,7 @@ test('locator waits honor their timeout even when the host stalls a probe', asyn
 test('drag always releases (mouseup) even when a move fails', async () => {
   const seen = [];
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
+    if (code.includes('window.__wvd =')) return 'ok';
     if (code.includes('resolveAll')) return found();
     if (code.includes("MouseEvent('mousemove'")) throw new Error('move blew up');
     seen.push(code); return 'ok';
@@ -1381,9 +1381,9 @@ test('drag always releases (mouseup) even when a move fails', async () => {
 
 test('backend() fails fast when a reload drops the pending call record', async () => {
   const onEval = (code) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__wae.invoke(')) return 700;
-    if (code.includes('__wae.callDone(')) return -1;
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvd.invoke(')) return 700;
+    if (code.includes('__wvd.callDone(')) return -1;
     return 'ok';
   };
   const { server, port } = await startMock({ onEval });
@@ -1400,8 +1400,8 @@ test('measureRenderPerf: never stacks DevTools-hook wrappers and auto-stops page
   const stats = { durMs: 1 };
   const chunk = chunkResponder(() => JSON.stringify(stats));
   const onEval = (code, state, ctx) => {
-    if (code.includes('window.__wae =')) return 'ok';
-    if (code.includes('__waePerfProbe=J')) { installs.push(code); return 1; }
+    if (code.includes('window.__wvd =')) return 'ok';
+    if (code.includes('__wvdPerfProbe=J')) { installs.push(code); return 1; }
     const c = chunk(code, state, ctx); if (c !== undefined) return c;
     return 'ok';
   };
@@ -1418,13 +1418,13 @@ test('measureRenderPerf: never stacks DevTools-hook wrappers and auto-stops page
   const ctx = vm.createContext({ performance: { now: () => now }, requestAnimationFrame: (f) => frames.push(f), __REACT_DEVTOOLS_GLOBAL_HOOK__: hook });
   ctx.window = ctx;
   vm.runInContext(installs[0], ctx);
-  const first = ctx.__waePerfProbe;
+  const first = ctx.__wvdPerfProbe;
   // Simulate a stale wrapper left behind (e.g. a crashed client) before the next run.
   vm.runInContext(installs[1], ctx);
   assert.equal(first.running, false, 'the earlier probe was stopped');
-  assert.equal(hook.onCommitFiberRoot.__waeOrig, orig, 'wraps the ORIGINAL hook, not the previous wrapper');
+  assert.equal(hook.onCommitFiberRoot.__wvdOrig, orig, 'wraps the ORIGINAL hook, not the previous wrapper');
   assert.equal(hook.onCommitFiberRoot(), 'orig');
-  const J = ctx.__waePerfProbe;
+  const J = ctx.__wvdPerfProbe;
   assert.equal(J.commits, 1);
   now = J.maxMs + 1; // nobody came back to read it
   frames.at(-1)();

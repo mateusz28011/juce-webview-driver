@@ -12,7 +12,7 @@ export interface Discovery {
     [key: string]: unknown;
 }
 /** Enumerate every registered bridge instance — the per-port files under
- *  `<home>/.web_agent_bridge.d`, sorted by port. Each entry is the full discovery
+ *  `<home>/.juce_webview_driver.d`, sorted by port. Each entry is the full discovery
  *  record (`{port, token, pid, processName, startedAt, label?}`), so a client can
  *  present a readable instance list instead of blindly picking the lowest port.
  *  Records whose `pid` no longer exists (a host that crashed without removing its
@@ -21,7 +21,7 @@ export declare function listInstances(): Array<Discovery & {
     port: number;
 }>;
 /** The port the host tries first (it scans upward on collision); clients fall
- *  back to it when no discovery file exists. Mirrors WebAgentBridge::start(). */
+ *  back to it when no discovery file exists. Mirrors WebViewDriver::start(). */
 export declare const DEFAULT_PORT = 8930;
 /** The protocol major these clients speak.
  *
@@ -96,9 +96,9 @@ export declare function assertProtocolSupported(caps: BridgeCapabilities): void;
 export declare function requireOp(caps: BridgeCapabilities | null, op: string, api: string): void;
 /** Locate a running bridge's {port, token}.
  *  The host writes them on start so clients never guess: each instance registers
- *  <home>/.web_agent_bridge.d/<port>.json (so several hosts — e.g. multiple
+ *  <home>/.juce_webview_driver.d/<port>.json (so several hosts — e.g. multiple
  *  plugin instances in a DAW — don't clobber each other), plus the single legacy
- *  <home>/.web_agent_bridge.json for older single-instance hosts.
+ *  <home>/.juce_webview_driver.json for older single-instance hosts.
  *
  *  With `preferredPort`, ONLY a record for that port is returned (its per-port
  *  file, else the legacy file when it names that port), otherwise {} — never

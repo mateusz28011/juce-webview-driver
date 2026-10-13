@@ -1,4 +1,4 @@
-# juce_webview_agent_bridge — Agent Guide
+# juce_webview_driver — Agent Guide
 
 Debug-only JUCE module + zero-dependency Node clients that let an external agent
 drive a live `juce::WebBrowserComponent` over a loopback socket (no CDP). Deep
@@ -7,10 +7,10 @@ limits, screenshot/TCC setup) — this file is the working map.
 
 ## Layout
 
-- `juce_webview_agent_bridge/` — the JUCE module (C++). Directory name MUST equal the
-  module ID and the master header name (`juce_webview_agent_bridge.h`) — a JUCE Module
+- `juce_webview_driver/` — the JUCE module (C++). Directory name MUST equal the
+  module ID and the master header name (`juce_webview_driver.h`) — a JUCE Module
   Format rule; that's why the module is nested instead of being the repo root.
-  - `detail/WebAgentBridge.{h,cpp}` — loopback server: auth gate, op dispatch
+  - `detail/WebViewDriver.{h,cpp}` — loopback server: auth gate, op dispatch
     (eval/eval_big/bounds/shot/shot_stream/hello/sink_replay), per-connection
     read + write threads with outbound queues, discovery files.
   - `detail/CaptureScript.h` — page-side capture (console/error/fetch/XHR/WS/
@@ -22,15 +22,15 @@ limits, screenshot/TCC setup) — this file is the working map.
 - `src/*.mts` — strict TypeScript source of truth for both Node clients and their
   shared transport. `npm run build` emits the committed, zero-runtime-dependency
   `.mjs` clients and `.d.mts` declarations under `tools/`.
-- `tools/web-agent.mjs` — generated one-shot CLI (`ping|hello|eval|dom|click|fill|capture|
+- `tools/webview-driver.mjs` — generated one-shot CLI (`ping|hello|eval|dom|click|fill|capture|
   backlog|logs|shot|layerdebug|layertree|instances`), auto-discovers `{port,token}` from
-  `~/.web_agent_bridge.json`.
+  `~/.juce_webview_driver.json`.
 - `tools/shared.mjs` — generated SSOT for what both clients must agree on: `loadDiscovery`,
   `onJsonLines` NDJSON framing, `DEFAULT_PORT`.
 - `tools/e2e.mjs` — generated Playwright-style client over the `eval` op (locators,
   auto-wait, expect, drag, readBig, backend, live sink events, render-perf probe).
 - `tests/` — both suites run WITHOUT any host app.
-- `skills/juce-webview-agent-bridge/SKILL.md` — the skills.sh agent skill; must stay in lockstep
+- `skills/juce-webview-driver/SKILL.md` — the skills.sh agent skill; must stay in lockstep
   with the clients' actual API.
 
 ## Commands
@@ -39,7 +39,7 @@ limits, screenshot/TCC setup) — this file is the working map.
 npm test                                        # JS suites (node:test, zero deps)
 npm ci --ignore-scripts && npm run build        # maintainer: compile strict TypeScript + declarations
 npm run test:types                              # consumer-facing TypeScript API fixture
-cmake -S tests -B build/test                    # C++ suite; -DWAB_JUCE_DIR=<path> reuses a local JUCE
+cmake -S tests -B build/test                    # C++ suite; -DWVD_JUCE_DIR=<path> reuses a local JUCE
 cmake --build build/test && ctest --test-dir build/test --output-on-failure
 npm run release [patch|minor|major|X.Y.Z]       # recovery/local; normal releases use manual release.yml
 ```
@@ -62,7 +62,7 @@ Linux.
   built-ins. Cross-client facts (discovery, NDJSON framing, default port) have
   ONE owner: `src/shared.mts` — never re-copy them into a client. TypeScript and
   `@types/node` are development-only. Never edit generated `tools/*` by hand.
-- **Debug-only.** Gated to `JUCE_DEBUG` via `WEB_AGENT_BRIDGE_ENABLED`; never
+- **Debug-only.** Gated to `JUCE_DEBUG` via `WEBVIEW_DRIVER_ENABLED`; never
   weaken that default or the `127.0.0.1` bind. The plaintext-token discovery
   file is `0600`; loopback is the trust boundary.
 - **Protocol is consumed by third parties.** Additive changes only (advertise
@@ -75,7 +75,7 @@ Linux.
   deadline, so a non-reading peer can't wedge the host). Teardown is
   `shutdown` → join read thread → join write thread → close. Preserve these invariants.
 - **Version lives in 6 places** (package.json, package-lock.json, module declaration,
-  the `WEB_AGENT_BRIDGE_VERSION` macro the `hello` reply reports, tests CMake,
+  the `WEBVIEW_DRIVER_VERSION` macro the `hello` reply reports, tests CMake,
   README `GIT_TAG` pin) — never bump by hand; `scripts/release.sh` is the owner.
 
 ## Changelog and releases

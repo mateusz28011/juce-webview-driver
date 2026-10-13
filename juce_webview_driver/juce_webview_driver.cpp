@@ -1,12 +1,12 @@
 /*
   ==============================================================================
-    juce_webview_agent_bridge — JUCE module compilation unit.
+    juce_webview_driver — JUCE module compilation unit.
   ==============================================================================
 */
 
-#include "juce_webview_agent_bridge.h"
+#include "juce_webview_driver.h"
 
-#include "detail/WebAgentBridge.cpp"
+#include "detail/WebViewDriver.cpp"
 #include "detail/LayerDebug_other.cpp"
 
 #if JUCE_WINDOWS

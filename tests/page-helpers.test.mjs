@@ -1,6 +1,6 @@
 /*
  * page-helpers.test.mjs — behavioural tests for the page-side helper bundle
- * (PAGE_HELPERS / window.__wae in tools/e2e.mjs).
+ * (PAGE_HELPERS / window.__wvd in tools/e2e.mjs).
  *
  * Same technique as capture.test.mjs: run the injected JS under node:vm against
  * a hand-rolled DOM stub, then drive the REAL selector engine (css / text= /
@@ -34,7 +34,7 @@ function el({ tag = 'DIV', text = '', attrs = {}, style = {}, rect = { x: 0, y: 
 }
 
 // qsa: Map(selector -> element list); the fake querySelectorAll just serves it,
-// so these tests pin __wae's own logic (parsing, filtering, dedup, geometry) —
+// so these tests pin __wvd's own logic (parsing, filtering, dedup, geometry) —
 // not the browser's CSS engine.
 function installHelpers({ qsa = new Map(), elementFromPoint = () => null, byId = {}, viewport = null } = {}) {
   const document = {
@@ -46,7 +46,7 @@ function installHelpers({ qsa = new Map(), elementFromPoint = () => null, byId =
   win.window = win;
   const ctx = vm.createContext({ window: win, document, getComputedStyle: (n) => n._style });
   assert.equal(vm.runInContext(PAGE_HELPERS, ctx, { filename: 'PAGE_HELPERS' }), 'ok');
-  return win.__wae;
+  return win.__wvd;
 }
 
 // ---- selector engine ---------------------------------------------------------

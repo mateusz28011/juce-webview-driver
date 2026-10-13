@@ -1,7 +1,7 @@
 /*
   ==============================================================================
 
-    CaptureScript.h  (module: juce_webview_agent_bridge)
+    CaptureScript.h  (module: juce_webview_driver)
 
     The page-side capture script, injected at document-start via
     Options::withUserScript (which JUCE runs after window.__JUCE__.backend is
@@ -9,12 +9,12 @@
 
     It patches console.* / window.onerror / unhandledrejection and intercepts
     fetch / XMLHttpRequest, plus a passive PerformanceObserver for resource
-    timing. Each event is forwarded to the native "__webAgentSink" function via
+    timing. Each event is forwarded to the native "__webviewDriverSink" function via
     the same __juce__invoke fire-and-forget path the JUCE frontend uses, and is
-    kept in a small ring buffer (window.__webAgentBuffer) so a late-connecting
+    kept in a small ring buffer (window.__webviewDriverBuffer) so a late-connecting
     agent can fetch the backlog with one eval.
 
-    Response bodies are only captured when window.__webAgentCapture === true
+    Response bodies are only captured when window.__webviewDriverCapture === true
     (toggled by the agent via eval) to avoid clone()/read overhead when nobody
     is listening.
 
@@ -23,19 +23,19 @@
 
 #pragma once
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
-namespace web_agent
+namespace webview_driver
 {
 
-inline const char* kCaptureScript = R"WEBAGENTJS(
+inline const char* kCaptureScript = R"WVDJS(
 (function () {
-  if (window.__webAgentInstalled) return;
-  window.__webAgentInstalled = true;
+  if (window.__webviewDriverInstalled) return;
+  window.__webviewDriverInstalled = true;
 
   var MAXLEN = 4000, BUFMAX = 500, BODYMAX = 64 * 1024; // BODYMAX: bytes read from a response body, at most
-  var buf = (window.__webAgentBuffer = []);
-  if (typeof window.__webAgentCapture === 'undefined') window.__webAgentCapture = false;
+  var buf = (window.__webviewDriverBuffer = []);
+  if (typeof window.__webviewDriverCapture === 'undefined') window.__webviewDriverCapture = false;
 
   function clip(s) {
     try { s = String(s); } catch (e) { return '<unstringifiable>'; }
@@ -66,10 +66,10 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
     buf.push(rec); if (buf.length > BUFMAX) buf.shift();
     try {
       var b = window.__JUCE__ && window.__JUCE__.backend;
-      if (b) b.emitEvent('__juce__invoke', { name: '__webAgentSink', params: [rec], resultId: -1 });
+      if (b) b.emitEvent('__juce__invoke', { name: '__webviewDriverSink', params: [rec], resultId: -1 });
     } catch (e) {}
   }
-  window.__webAgentSend = send;
+  window.__webviewDriverSend = send;
 
   // Read at most `limit` bytes of a (cloned) response body stream, then cancel it,
   // so a large or never-ending body can't be buffered whole just to be clipped.
@@ -93,7 +93,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
   }
 
   // Which hooks to install (set by withCapture; each key defaults ON when absent).
-  var HOOKS = window.__webAgentCaptureHooks || {};
+  var HOOKS = window.__webviewDriverCaptureHooks || {};
   function hookOn(k) { return HOOKS[k] !== false; }
 
   // --- console.* ---
@@ -156,7 +156,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
       // with the response record. A Request-object body can't be read without
       // consuming the stream, so only an explicit string init.body is captured.
       var reqCap = {};
-      if (window.__webAgentCapture) {
+      if (window.__webviewDriverCapture) {
         try {
           var init = args[1], req0 = args[0];
           if (init && typeof init.body === 'string') reqCap.reqBody = clip(init.body);
@@ -172,7 +172,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
       var start = Date.now();
       return of.apply(this, args).then(function (resp) {
         var info = addReq({ kind: 'fetch', url: clip(url), method: method, status: resp.status, ms: Date.now() - start });
-        if (window.__webAgentCapture) {
+        if (window.__webviewDriverCapture) {
           try {
             // Never tee a stream that doesn't end (SSE) or buffer a huge body just to
             // clip it: skip those (noting why), and read the rest byte-capped.
@@ -218,7 +218,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
         var self = this;
         if (self.__wa) {
           self.__wa.start = Date.now();
-          if (window.__webAgentCapture && typeof body === 'string') self.__wa.reqBody = clip(body);
+          if (window.__webviewDriverCapture && typeof body === 'string') self.__wa.reqBody = clip(body);
         }
         // One loadend listener per XHR instance: a reused XHR (open/send again) must
         // not stack listeners and report every later request several times. The
@@ -229,7 +229,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
             try {
               var b = self.__wa || {};
               var info = { kind: 'xhr', url: clip(b.url), method: b.method, status: self.status, ms: Date.now() - (b.start || Date.now()) };
-              if (window.__webAgentCapture) {
+              if (window.__webviewDriverCapture) {
                 try { info.body = clip(self.responseText); } catch (e) {}
                 if (b.reqBody != null) info.reqBody = b.reqBody;
                 if (b.reqHeaders) info.reqHeaders = b.reqHeaders;
@@ -260,12 +260,12 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
           ws.addEventListener('close', function (e) { send('net', { kind: 'ws', event: 'close', url: u, code: e && e.code }); });
           ws.addEventListener('error', function () { send('net', { kind: 'ws', event: 'error', url: u }); });
           ws.addEventListener('message', function (e) {
-            if (window.__webAgentCapture)
+            if (window.__webviewDriverCapture)
               send('net', { kind: 'ws', event: 'message', url: u, dir: 'in', body: clip(typeof e.data === 'string' ? e.data : '<binary>') });
           });
           var origSend = ws.send;
           ws.send = function (d) {
-            if (window.__webAgentCapture)
+            if (window.__webviewDriverCapture)
               send('net', { kind: 'ws', event: 'message', url: u, dir: 'out', body: clip(typeof d === 'string' ? d : '<binary>') });
             return origSend.apply(ws, arguments);
           };
@@ -291,7 +291,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
           es.addEventListener('open', function () { send('net', { kind: 'sse', event: 'open', url: u }); });
           es.addEventListener('error', function () { send('net', { kind: 'sse', event: 'error', url: u }); });
           es.addEventListener('message', function (e) {
-            if (window.__webAgentCapture)
+            if (window.__webviewDriverCapture)
               send('net', { kind: 'sse', event: 'message', url: u, body: clip(e && e.data) });
           });
         } catch (e) {}
@@ -310,7 +310,7 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
       var ob = navigator.sendBeacon.bind(navigator);
       navigator.sendBeacon = function (url, data) {
         var info = { kind: 'beacon', url: clip(typeof url === 'string' ? url : (url && url.url) || ''), method: 'POST' };
-        if (window.__webAgentCapture) {
+        if (window.__webviewDriverCapture) {
           try { info.body = clip(typeof data === 'string' ? data : (data && data.toString ? data.toString() : '<blob>')); } catch (e) {}
         }
         send('net', info);
@@ -330,10 +330,10 @@ inline const char* kCaptureScript = R"WEBAGENTJS(
     });
   } catch (e) {}
 
-  send('console', { level: 'info', args: ['[web_agent] capture installed'] });
+  send('console', { level: 'info', args: ['[webview_driver] capture installed'] });
 })();
-)WEBAGENTJS";
+)WVDJS";
 
-} // namespace web_agent
+} // namespace webview_driver
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

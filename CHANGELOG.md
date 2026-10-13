@@ -5,6 +5,25 @@ commit comparisons are available from the linked GitHub Releases.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the project is renamed from `juce-webview-agent-bridge` to
+  `juce-webview-driver`. Module, clients and discovery files change together, so
+  host and client must both be upgraded:
+  - npm package and CLI: `juce-webview-agent-bridge` → `juce-webview-driver`;
+    `tools/web-agent.mjs` → `tools/webview-driver.mjs`.
+  - JUCE module: `juce_webview_agent_bridge` → `juce_webview_driver` (directory,
+    module ID, header, `FetchContent` name).
+  - C++: `web_agent::WebAgentBridge` → `webview_driver::WebViewDriver`;
+    `WEB_AGENT_BRIDGE_ENABLED` / `WEB_AGENT_BRIDGE_VERSION` →
+    `WEBVIEW_DRIVER_ENABLED` / `WEBVIEW_DRIVER_VERSION`.
+  - Discovery: `~/.web_agent_bridge.json` and `~/.web_agent_bridge.d/` →
+    `~/.juce_webview_driver.json` and `~/.juce_webview_driver.d/`.
+  - Environment: `WEB_AGENT_PORT` / `WEB_AGENT_TOKEN` / `WAE_LOG_FILE` →
+    `WEBVIEW_DRIVER_PORT` / `WEBVIEW_DRIVER_TOKEN` / `WEBVIEW_DRIVER_LOG_FILE`.
+  - Page globals: `window.__webAgent*` → `window.__webviewDriver*`;
+    `window.__wae` → `window.__wvd`; `Session.evalWae` → `Session.evalWvd`.
+
 ## [0.7.0] - 2026-09-25
 
 ### Added
@@ -280,16 +299,16 @@ There are no package API changes in this release.
 - Zero-dependency CLI, Playwright-shaped E2E client, agent skill, and standalone
   JavaScript and C++ test suites.
 
-[Unreleased]: https://github.com/mateusz28011/juce-webview-agent-bridge/compare/v0.7.0...HEAD
-[0.7.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.7.0
-[0.6.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.6.0
-[0.5.2]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.5.2
-[0.5.1]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.5.1
-[0.5.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.5.0
-[0.4.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.4.0
-[0.3.1]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.3.1
-[0.3.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.3.0
-[0.2.2]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.2.2
-[0.2.1]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.2.1
-[0.2.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.2.0
-[0.1.0]: https://github.com/mateusz28011/juce-webview-agent-bridge/releases/tag/v0.1.0
+[Unreleased]: https://github.com/mateusz28011/juce-webview-driver/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.7.0
+[0.6.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.6.0
+[0.5.2]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.5.2
+[0.5.1]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.5.1
+[0.5.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.5.0
+[0.4.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.4.0
+[0.3.1]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.3.1
+[0.3.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.3.0
+[0.2.2]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.2.2
+[0.2.1]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.2.1
+[0.2.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.2.0
+[0.1.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.1.0

@@ -1,5 +1,5 @@
 /*
- * web-agent.test.mjs — tests for the CLI client (tools/web-agent.mjs).
+ * webview-driver.test.mjs — tests for the CLI client (tools/webview-driver.mjs).
  *
  * Zero-dependency: built-in node:test, node:net, node:child_process. Runs
  * standalone after OSS extraction with `node --test tests/` (or `npm test`).
@@ -18,7 +18,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const CLIENT = fileURLToPath(new URL('../tools/web-agent.mjs', import.meta.url));
+const CLIENT = fileURLToPath(new URL('../tools/webview-driver.mjs', import.meta.url));
 
 // A mock bridge. Captures what the client sends and serves controlled replies.
 function startMockBridge({ onEval, requireToken = 'T', splitUtf8 = false, afterAuth, hello = {}, onOp = {} } = {}) {
@@ -73,7 +73,7 @@ function startMockBridge({ onEval, requireToken = 'T', splitUtf8 = false, afterA
         }
         if (m.op === 'shot') {
           state.lastShot = m;
-          reply({ op: 'shot', ok: true, path: m.path || '/tmp/wab-shot.png' });
+          reply({ op: 'shot', ok: true, path: m.path || '/tmp/wvd-shot.png' });
           continue;
         }
         reply({ op: m.op, ok: false, error: { code: 'UNKNOWN_OP', message: 'unknown op: ' + m.op } });
@@ -102,9 +102,9 @@ function runClient(args, { home, env = {} } = {}) {
 
 const tempDirs = [];
 function tempHomeWith(discovery) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-home-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-home-'));
   tempDirs.push(dir);
-  if (discovery) fs.writeFileSync(path.join(dir, '.web_agent_bridge.json'), JSON.stringify(discovery));
+  if (discovery) fs.writeFileSync(path.join(dir, '.juce_webview_driver.json'), JSON.stringify(discovery));
   return dir;
 }
 
@@ -114,7 +114,7 @@ after(() => {
   }
 });
 
-test('ping: auto-discovers port + token from ~/.web_agent_bridge.json and authenticates', async () => {
+test('ping: auto-discovers port + token from ~/.juce_webview_driver.json and authenticates', async () => {
   const { server, state, port } = await startMockBridge();
   try {
     const home = tempHomeWith({ port, token: 'T' });
@@ -177,9 +177,9 @@ test('auth: a missing token surfaces the bridge error and a non-zero exit', asyn
 });
 
 test('instances: lists every registered bridge with its identity, no connection', async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-home-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-home-'));
   tempDirs.push(home);
-  const d = path.join(home, '.web_agent_bridge.d');
+  const d = path.join(home, '.juce_webview_driver.d');
   fs.mkdirSync(d);
   fs.writeFileSync(path.join(d, '8930.json'), JSON.stringify(
     { port: 8930, token: 'T', pid: process.pid, processName: 'Live', startedAt: '2026-07-21T10:00:00.000Z', label: 'Track 3 EQ' }));
@@ -198,20 +198,20 @@ test('instances: lists every registered bridge with its identity, no connection'
 });
 
 test('instances: reports none when no bridge is registered', async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-home-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-home-'));
   tempDirs.push(home);
   const r = await runClient(['instances'], { home });
   assert.equal(r.code, 0);
   assert.match(r.out, /no running bridge instances/);
 });
 
-test('discovery: enumerates .web_agent_bridge.d, default = lowest port, --port selects one', async () => {
+test('discovery: enumerates .juce_webview_driver.d, default = lowest port, --port selects one', async () => {
   const a = await startMockBridge();
   const b = await startMockBridge();
   try {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-home-'));
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-home-'));
     tempDirs.push(home);
-    const d = path.join(home, '.web_agent_bridge.d');
+    const d = path.join(home, '.juce_webview_driver.d');
     fs.mkdirSync(d);
     fs.writeFileSync(path.join(d, `${a.port}.json`), JSON.stringify({ port: a.port, token: 'T' }));
     fs.writeFileSync(path.join(d, `${b.port}.json`), JSON.stringify({ port: b.port, token: 'T' }));
@@ -314,7 +314,7 @@ test('shot <out> <selector>: computes the element rect and sends it with the sho
 
 test('logs --backlog dumps the page ring buffer first, then streams live', async () => {
   const onEval = (code) =>
-    code.includes('__webAgentBuffer')
+    code.includes('__webviewDriverBuffer')
       ? JSON.stringify([{ kind: 'console', t: 1, data: { level: 'log', args: ['from-backlog'] } }])
       : 'OK';
   const afterAuth = (sock) => {
@@ -326,7 +326,7 @@ test('logs --backlog dumps the page ring buffer first, then streams live', async
   try {
     const home = tempHomeWith({ port, token: 'T' });
     const { out } = await runClient(['logs', '--backlog'], { home });
-    assert.ok(state.lastEval.includes('__webAgentBuffer'), 'fetched the ring buffer first');
+    assert.ok(state.lastEval.includes('__webviewDriverBuffer'), 'fetched the ring buffer first');
     assert.match(out, /from-backlog/); // history dumped
     assert.match(out, /live-event/);   // then the live stream
   } finally {
@@ -410,17 +410,17 @@ test('fill: exits 1 when the target is missing or not an input', async () => {
   } finally { server.close(); }
 });
 
-test('capture: toggles window.__webAgentCapture on and off', async () => {
+test('capture: toggles window.__webviewDriverCapture on and off', async () => {
   const { server, state, port } = await startMockBridge({ onEval: () => 'on' });
   try {
     const home = tempHomeWith({ port, token: 'T' });
     const on = await runClient(['capture', 'on'], { home });
     assert.equal(on.code, 0);
     assert.match(on.out, /response-body capture: on/);
-    assert.match(state.lastEval, /__webAgentCapture = true/);
+    assert.match(state.lastEval, /__webviewDriverCapture = true/);
     const off = await runClient(['capture', 'off'], { home });
     assert.match(off.out, /response-body capture: off/);
-    assert.match(state.lastEval, /__webAgentCapture = false/);
+    assert.match(state.lastEval, /__webviewDriverCapture = false/);
   } finally { server.close(); }
 });
 
@@ -479,12 +479,12 @@ test('--port with no value is a usage error (exit 2), not a silent default', asy
 test('--port for an unregistered port never borrows another instance\'s token', async () => {
   const { server, state, port } = await startMockBridge({ requireToken: null });
   try {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-home-'));
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-home-'));
     tempDirs.push(home);
-    const d = path.join(home, '.web_agent_bridge.d');
+    const d = path.join(home, '.juce_webview_driver.d');
     fs.mkdirSync(d);
     fs.writeFileSync(path.join(d, '1.json'), JSON.stringify({ port: 1, token: 'OTHER', pid: process.pid }));
-    fs.writeFileSync(path.join(home, '.web_agent_bridge.json'), JSON.stringify({ port: 2, token: 'LEGACY' }));
+    fs.writeFileSync(path.join(home, '.juce_webview_driver.json'), JSON.stringify({ port: 2, token: 'LEGACY' }));
     const r = await runClient(['ping', '--port', String(port)], { home });
     assert.equal(r.code, 0);
     assert.equal(state.sawToken, null, 'no token from a different instance was sent');

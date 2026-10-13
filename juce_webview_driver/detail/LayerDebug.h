@@ -1,7 +1,7 @@
 /*
   ==============================================================================
 
-    LayerDebug.h  (module: juce_webview_agent_bridge)
+    LayerDebug.h  (module: juce_webview_driver)
 
     Debug-only toggle for WebKit's compositing debug overlays on the embedded
     WKWebView: layer borders + repaint counters. This is the 30-second
@@ -25,11 +25,11 @@
 
 #pragma once
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include <string>
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 /** Toggle compositing borders + repaint counters on the WKWebView(s) owned by
@@ -48,6 +48,6 @@ bool setCompositingDebugOverlays (juce::Component* scope, bool enabled);
     unavailable (non-mac backend, renamed selector). */
 std::string getCaLayerTreeAsText (juce::Component* scope);
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
 #endif

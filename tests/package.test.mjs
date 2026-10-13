@@ -14,15 +14,15 @@ const npm = (args, opts) => process.env.npm_execpath
   : execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { ...opts, shell: process.platform === 'win32' });
 
 test('packed npm client supports root/subpath imports and the canonical CLI name', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-package-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-package-'));
   try {
     const packed = JSON.parse(npm(['pack', '--json', '--pack-destination', dir], {
       cwd: ROOT,
       encoding: 'utf8',
     }));
-    assert.equal(packed[0].name, 'juce-webview-agent-bridge');
+    assert.equal(packed[0].name, 'juce-webview-driver');
     const paths = new Set(packed[0].files.map((file) => file.path));
-    for (const required of ['tools/e2e.mjs', 'tools/e2e.d.mts', 'tools/shared.mjs', 'tools/shared.d.mts', 'tools/web-agent.mjs'])
+    for (const required of ['tools/e2e.mjs', 'tools/e2e.d.mts', 'tools/shared.mjs', 'tools/shared.d.mts', 'tools/webview-driver.mjs'])
       assert.ok(paths.has(required), `${required} is included in the tarball`);
 
     fs.writeFileSync(path.join(dir, 'package.json'), '{"private":true,"type":"module"}\n');
@@ -32,9 +32,9 @@ test('packed npm client supports root/subpath imports and the canonical CLI name
     });
 
     const output = execFileSync(process.execPath, ['--input-type=module', '--eval', `
-      import { connect, expect, Page, Locator } from 'juce-webview-agent-bridge';
-      import { connect as connectSubpath } from 'juce-webview-agent-bridge/e2e';
-      import { DEFAULT_PORT } from 'juce-webview-agent-bridge/shared';
+      import { connect, expect, Page, Locator } from 'juce-webview-driver';
+      import { connect as connectSubpath } from 'juce-webview-driver/e2e';
+      import { DEFAULT_PORT } from 'juce-webview-driver/shared';
       console.log(JSON.stringify({
         root: [connect, expect, Page, Locator].every(x => typeof x === 'function'),
         subpath: connect === connectSubpath,
@@ -45,7 +45,7 @@ test('packed npm client supports root/subpath imports and the canonical CLI name
 
     const binDir = path.join(dir, 'node_modules', '.bin');
     const suffix = process.platform === 'win32' ? '.cmd' : '';
-    assert.ok(fs.existsSync(path.join(binDir, `juce-webview-agent-bridge${suffix}`)));
+    assert.ok(fs.existsSync(path.join(binDir, `juce-webview-driver${suffix}`)));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

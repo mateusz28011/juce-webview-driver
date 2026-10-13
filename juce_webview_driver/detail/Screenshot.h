@@ -1,7 +1,7 @@
 /*
   ==============================================================================
 
-    Screenshot.h  (module: juce_webview_agent_bridge)
+    Screenshot.h  (module: juce_webview_driver)
 
     Platform-abstracted window capture. The WebView composites its WebGL/canvas
     content out-of-process on the GPU, so neither JUCE's createComponentSnapshot
@@ -21,12 +21,12 @@
 
 #pragma once
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include <cmath>
 #include <functional>
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 /** Converts a device-pixel coordinate to int without overflow: a client-supplied
@@ -157,6 +157,6 @@ bool streamCaptureOsSupported();
     stop() so a worker never outlives it. A no-op where captures run on OS queues. */
 void waitForCaptureWorkers (int timeoutMs);
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

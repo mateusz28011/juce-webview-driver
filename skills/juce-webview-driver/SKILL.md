@@ -1,20 +1,20 @@
 ---
-name: juce-webview-agent-bridge
-description: Drive a live embedded WebView from outside via juce_webview_agent_bridge — eval JS, stream console/network, click/fill, screenshot (incl. WebGL) on the real running app, no CDP. Use when inspecting or driving a running app's embedded web UI, the juce_webview_agent_bridge module, web-agent.mjs, or e2e.mjs.
+name: juce-webview-driver
+description: Drive a live embedded WebView from outside via juce_webview_driver — eval JS, stream console/network, click/fill, screenshot (incl. WebGL) on the real running app, no CDP. Use when inspecting or driving a running app's embedded web UI, the juce_webview_driver module, webview-driver.mjs, or e2e.mjs.
 ---
 
-# juce webview agent bridge
+# juce webview driver
 
-Drive the **real** embedded WebView of a running native app over a loopback JSON socket — the live runtime (native bridge, real state), not a dev-server copy in a separate browser. Works on WKWebView and WebView2 (no CDP). The app must embed the `juce_webview_agent_bridge` JUCE module (Debug builds only).
+Drive the **real** embedded WebView of a running native app over a loopback JSON socket — the live runtime (native bridge, real state), not a dev-server copy in a separate browser. Works on WKWebView and WebView2 (no CDP). The app must embed the `juce_webview_driver` JUCE module (Debug builds only).
 
-Client: prefer the project's installed npm package (`npx juce-webview-agent-bridge <cmd>`), or run
-`node <path-to>/tools/web-agent.mjs <cmd>` from a checkout of
-[juce-webview-agent-bridge](https://github.com/mateusz28011/juce-webview-agent-bridge).
+Client: prefer the project's installed npm package (`npx juce-webview-driver <cmd>`), or run
+`node <path-to>/tools/webview-driver.mjs <cmd>` from a checkout of
+[juce-webview-driver](https://github.com/mateusz28011/juce-webview-driver).
 The published client has zero runtime dependencies and requires Node ≥ 22.
 
 ## Connecting
 
-The client auto-discovers port + session token from `~/.web_agent_bridge.json` (written by the app on start) — no flags needed. Multiple instances each register `~/.web_agent_bridge.d/<port>.json`; the client picks the lowest port by default, `--port <n>` selects another. If `ping` gives no pong, or ops return `auth required`: the app isn't running, isn't a Debug build, or the bridge never started.
+The client auto-discovers port + session token from `~/.juce_webview_driver.json` (written by the app on start) — no flags needed. Multiple instances each register `~/.juce_webview_driver.d/<port>.json`; the client picks the lowest port by default, `--port <n>` selects another. If `ping` gives no pong, or ops return `auth required`: the app isn't running, isn't a Debug build, or the bridge never started.
 
 ## Commands
 
@@ -36,10 +36,10 @@ A CLI command that fails (no matching element, no pong, an op reply with `ok:fal
 
 ## Playwright-style client (e2e.mjs)
 
-For DOM-driving with auto-wait instead of raw `eval`, use `e2e.mjs` (sibling of `web-agent.mjs`):
+For DOM-driving with auto-wait instead of raw `eval`, use `e2e.mjs` (sibling of `webview-driver.mjs`):
 
 ```js
-import { connect, expect } from 'juce-webview-agent-bridge';
+import { connect, expect } from 'juce-webview-driver';
 const page = await connect();                  // same auto-discovery (port + token)
 await page.getByTestId('save').click();        // waits visible+stable+enabled+hit
 await expect(page.locator('text=Done')).toBeVisible();
@@ -61,7 +61,7 @@ page.close();
 - **Large values:** `await page.readBig('JSON.stringify(window.bigState)')` gets a big string in ONE request via the host's `eval_big` op (falls back to a client-side chunk loop on older hosts) — raw `eval` stalls on returns >~100KB (see Gotchas).
 - **Compositing instruments:** `page.layerDebug(true|false)` toggles the overlay borders/repaint counters; `page.layerTree()` returns the CALayer-tree text and the exported pure `parseLayerTree(text)` turns it into `[{x,y,width,height}, …]` — e.g. `parseLayerTree(await page.layerTree()).filter(l => l.width===400)` counts a specific surface's layers from a script.
 - **JUCE native fns:** `await page.backend('name', ...args)` (await result) / `page.fireBackend('name', ...args)` (fire-and-forget), over the generic `__juce__invoke` bridge.
-- **Action log:** `connect()` writes every action (click/fill/drag/backend/fire) to ONE file (`$WAE_LOG_FILE` / `connect({logFile})` / `<tmp>/web_agent_e2e.log`) + echoes to stderr, so a live run shows progress. `page.logFile` is the path; `fileLogger(path)` is exported.
+- **Action log:** `connect()` writes every action (click/fill/drag/backend/fire) to ONE file (`$WEBVIEW_DRIVER_LOG_FILE` / `connect({logFile})` / `<tmp>/webview_driver_e2e.log`) + echoes to stderr, so a live run shows progress. `page.logFile` is the path; `fileLogger(path)` is exported.
 - **Typed failures:** a failed op rejects with `BridgeOpError` (exported) carrying `.code` — a `BridgeErrorCode` (`NO_WEBVIEW`/`EVAL_ERROR`/`SCREENSHOT_UNAVAILABLE`/`SCREENSHOT_FAILED`/`LAYER_UNAVAILABLE`/`AUTH_REQUIRED`/`UNKNOWN_OP`) — plus `.message`. Branch on `e.code`, not message text.
 - Stays **app-agnostic** — put app-specific selectors / native-fn names / state getters in your *project* (thin wrappers over `backend`/`fireBackend`/`readBig`), never in `e2e.mjs`.
 

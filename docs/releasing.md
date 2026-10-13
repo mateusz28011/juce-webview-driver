@@ -13,10 +13,10 @@ published.
 | Tag, GitHub Release, npm publish | `.github/workflows/release.yml` | The normal path. `scripts/release.sh` directly is for local recovery. |
 
 The six version sites: `package.json`, `package-lock.json`, the JUCE module
-declaration `version:`, the `WEB_AGENT_BRIDGE_VERSION` macro that the `hello`
+declaration `version:`, the `WEBVIEW_DRIVER_VERSION` macro that the `hello`
 reply reports, `tests/CMakeLists.txt`, and the README `GIT_TAG` pin. The module
-declaration and the `WEB_AGENT_BRIDGE_VERSION` macro share one file
-(`juce_webview_agent_bridge/juce_webview_agent_bridge.h`), so those six sites live
+declaration and the `WEBVIEW_DRIVER_VERSION` macro share one file
+(`juce_webview_driver/juce_webview_driver.h`), so those six sites live
 in five files. The release commit also stages `tools/` (the generated clients),
 so it normally touches six files, not five.
 
@@ -89,7 +89,7 @@ deliberately refuses to release if `main` moved after the tests ran.
 ```bash
 gh run view <run-id> --json status,conclusion
 gh release view vX.Y.Z --json tagName,name,isDraft,isPrerelease
-npm view juce-webview-agent-bridge version dist-tags engines license
+npm view juce-webview-driver version dist-tags engines license
 npm audit signatures                       # provenance attestation (OIDC, no tokens)
 git fetch origin --tags && git merge --ff-only origin/main
 git status --short                         # must be clean

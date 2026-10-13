@@ -7,12 +7,12 @@
  * the driver. This fixture hands each test a bridge `page` instead of a Playwright
  * browser page; tests that only use `app` never launch a browser.
  *
- * Bring your own harness: `npm i -D @playwright/test juce-webview-agent-bridge`.
+ * Bring your own harness: `npm i -D @playwright/test juce-webview-driver`.
  * The bridge package itself still has zero runtime dependencies.
  */
 import { test as base } from '@playwright/test';
 
-import { connect } from 'juce-webview-agent-bridge';
+import { connect } from 'juce-webview-driver';
 
 export const test = base.extend({
   // Per-test bridge connection to the already-running host app. Named `app` (not
@@ -24,7 +24,7 @@ export const test = base.extend({
       logFile: testInfo.outputPath('bridge.log'),
     }).catch(() => null);
 
-    testInfo.skip(!app, 'web_agent_bridge not reachable — is the Debug host running?');
+    testInfo.skip(!app, 'juce_webview_driver not reachable — is the Debug host running?');
     await use(app);
     app?.close();
   },
@@ -32,4 +32,4 @@ export const test = base.extend({
 
 // The bridge ships its own auto-retrying expect (locator + value assertions);
 // re-export it so specs import everything from one place.
-export { expect } from 'juce-webview-agent-bridge';
+export { expect } from 'juce-webview-driver';

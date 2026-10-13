@@ -1,6 +1,6 @@
 /*
   ==============================================================================
-    Screenshot_windows.cpp  (module: juce_webview_agent_bridge)
+    Screenshot_windows.cpp  (module: juce_webview_driver)
 
     Windows window capture via Windows.Graphics.Capture. The API reads the DWM
     compositor surface for the host HWND, so out-of-process WebView2 WebGL/canvas
@@ -12,7 +12,7 @@
 
 #include "Screenshot.h"
 
-#if WEB_AGENT_BRIDGE_ENABLED && JUCE_WINDOWS
+#if WEBVIEW_DRIVER_ENABLED && JUCE_WINDOWS
 
 // C++/WinRT pulls in coroutine support unconditionally, and under /std:c++17
 // that means <experimental/coroutine>, which recent MSVC STLs hard-error on.
@@ -41,7 +41,7 @@
  #pragma comment(lib, "windowsapp.lib")
 #endif
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 namespace
@@ -127,7 +127,7 @@ juce::File chooseOutput (juce::File target)
         return target;
 
     return juce::File::getSpecialLocation (juce::File::tempDirectory)
-        .getChildFile ("web-agent-shot-" + juce::Uuid().toString() + ".png");
+        .getChildFile ("webview-driver-shot-" + juce::Uuid().toString() + ".png");
 }
 
 bool makeD3DDevice (winrt::com_ptr<ID3D11Device>& device,
@@ -498,6 +498,6 @@ void waitForCaptureWorkers (int timeoutMs)
                      [&w] { return w.active == 0; });
 }
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
-#endif // WEB_AGENT_BRIDGE_ENABLED && JUCE_WINDOWS
+#endif // WEBVIEW_DRIVER_ENABLED && JUCE_WINDOWS

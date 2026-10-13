@@ -1,6 +1,6 @@
 /*
   ==============================================================================
-    Screenshot_other.cpp  (module: juce_webview_agent_bridge)
+    Screenshot_other.cpp  (module: juce_webview_driver)
 
     Unsupported-platform window capture. Stubbed for now.
     TODO (Linux):   capture + crop via XComposite (redirected pixmap); WebKitGTK's
@@ -11,9 +11,9 @@
 
 #include "Screenshot.h"
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 void captureWindowAsync (juce::Component& comp,
@@ -44,6 +44,6 @@ bool streamCaptureOsSupported() { return true; }
 
 void waitForCaptureWorkers (int) {}
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

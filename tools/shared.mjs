@@ -1,5 +1,5 @@
 /*
- * shared.mjs — the facts both clients (web-agent.mjs, e2e.mjs) must agree on:
+ * shared.mjs — the facts both clients (webview-driver.mjs, e2e.mjs) must agree on:
  * bridge discovery and NDJSON wire framing. Single source of truth — the two
  * clients used to carry private copies of this logic, and the copies drifted
  * (the fill focus fix landed in one and not the other), so it now lives here.
@@ -33,13 +33,13 @@ function pidAlive(pid) {
     }
 }
 /** Enumerate every registered bridge instance — the per-port files under
- *  `<home>/.web_agent_bridge.d`, sorted by port. Each entry is the full discovery
+ *  `<home>/.juce_webview_driver.d`, sorted by port. Each entry is the full discovery
  *  record (`{port, token, pid, processName, startedAt, label?}`), so a client can
  *  present a readable instance list instead of blindly picking the lowest port.
  *  Records whose `pid` no longer exists (a host that crashed without removing its
  *  file) are skipped, so a stale file is never picked over a live instance. */
 export function listInstances() {
-    const dir = path.join(os.homedir(), '.web_agent_bridge.d');
+    const dir = path.join(os.homedir(), '.juce_webview_driver.d');
     try {
         return fs.readdirSync(dir)
             .filter((f) => f.endsWith('.json'))
@@ -53,7 +53,7 @@ export function listInstances() {
     }
 }
 /** The port the host tries first (it scans upward on collision); clients fall
- *  back to it when no discovery file exists. Mirrors WebAgentBridge::start(). */
+ *  back to it when no discovery file exists. Mirrors WebViewDriver::start(). */
 export const DEFAULT_PORT = 8930;
 /** The protocol major these clients speak.
  *
@@ -135,7 +135,7 @@ export function assertProtocolSupported(caps) {
         return;
     throw new Error(`bridge protocol ${caps.protocolVersion} is newer than this client understands `
         + `(${CLIENT_PROTOCOL_VERSION}). The protocol major only moves on a BREAKING change, so this `
-        + `npm client is too old for the host's module — upgrade juce-webview-agent-bridge.\n  ${describePairing(caps)}`);
+        + `npm client is too old for the host's module — upgrade juce-webview-driver.\n  ${describePairing(caps)}`);
 }
 /** Throw an actionable error when the host bridge lacks the op an API needs.
  *  Without this the host replies `unknown op: <x>`, which callers either surface
@@ -144,16 +144,16 @@ export function assertProtocolSupported(caps) {
 export function requireOp(caps, op, api) {
     if (caps === null || caps.ops.includes(op))
         return; // null = handshake unavailable; stay out of the way
-    throw new Error(`${api} needs the "${op}" op, which the host's juce_webview_agent_bridge module does not provide. `
+    throw new Error(`${api} needs the "${op}" op, which the host's juce_webview_driver module does not provide. `
         + `The plugin was built against an older module than this client expects — update the module it `
         + `builds against (FetchContent pin, git submodule, or vendored copy) and rebuild the plugin.`
         + `\n  ${describePairing(caps)}\n  host ops: ${caps.ops.join(', ')}`);
 }
 /** Locate a running bridge's {port, token}.
  *  The host writes them on start so clients never guess: each instance registers
- *  <home>/.web_agent_bridge.d/<port>.json (so several hosts — e.g. multiple
+ *  <home>/.juce_webview_driver.d/<port>.json (so several hosts — e.g. multiple
  *  plugin instances in a DAW — don't clobber each other), plus the single legacy
- *  <home>/.web_agent_bridge.json for older single-instance hosts.
+ *  <home>/.juce_webview_driver.json for older single-instance hosts.
  *
  *  With `preferredPort`, ONLY a record for that port is returned (its per-port
  *  file, else the legacy file when it names that port), otherwise {} — never
@@ -162,9 +162,9 @@ export function requireOp(caps, op, api) {
  *  Returns {} when nothing is found. */
 export function loadDiscovery(preferredPort) {
     const home = os.homedir();
-    const legacy = () => readDiscoveryFile(path.join(home, '.web_agent_bridge.json'));
+    const legacy = () => readDiscoveryFile(path.join(home, '.juce_webview_driver.json'));
     if (preferredPort) {
-        const d = readDiscoveryFile(path.join(home, '.web_agent_bridge.d', `${preferredPort}.json`));
+        const d = readDiscoveryFile(path.join(home, '.juce_webview_driver.d', `${preferredPort}.json`));
         if (d && (d.port === undefined || d.port === preferredPort))
             return d;
         const l = legacy();

@@ -1,10 +1,10 @@
-# JUCE WebView Agent Bridge
+# JUCE WebView Driver
 
-[![npm version](https://img.shields.io/npm/v/juce-webview-agent-bridge.svg)](https://www.npmjs.com/package/juce-webview-agent-bridge)
-[![tests](https://github.com/mateusz28011/juce-webview-agent-bridge/actions/workflows/tests.yml/badge.svg)](https://github.com/mateusz28011/juce-webview-agent-bridge/actions/workflows/tests.yml)
+[![npm version](https://img.shields.io/npm/v/juce-webview-driver.svg)](https://www.npmjs.com/package/juce-webview-driver)
+[![tests](https://github.com/mateusz28011/juce-webview-driver/actions/workflows/tests.yml/badge.svg)](https://github.com/mateusz28011/juce-webview-driver/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![JUCE WebView plugin connected to an agent and E2E tests](https://raw.githubusercontent.com/mateusz28011/juce-webview-agent-bridge/main/docs/social-preview.png)
+![Automated test clicking a control in a live JUCE WebView plugin UI](https://raw.githubusercontent.com/mateusz28011/juce-webview-driver/main/docs/social-preview.png)
 
 A **debug-only** JUCE module that lets an external agent (or script) drive a live
 `juce::WebBrowserComponent` over a loopback TCP socket — a "mini-CDP" giving you a
@@ -31,7 +31,7 @@ verified against the home project's real Debug standalone. See **Status** below.
 > loopback (`127.0.0.1`) bind plus a per-session token — and the token sits in
 > plaintext in the discovery file, so **loopback is the real trust boundary** (there
 > is no TLS; anything that can reach localhost + read your home dir is trusted). It is
-> gated to `JUCE_DEBUG` by default (`WEB_AGENT_BRIDGE_ENABLED`). **Never ship it
+> gated to `JUCE_DEBUG` by default (`WEBVIEW_DRIVER_ENABLED`). **Never ship it
 > enabled in a release build.**
 
 ## Why
@@ -79,7 +79,7 @@ clients need Node ≥ 22 (zero runtime dependencies).
 It's a standard JUCE module. Get the repo — as a submodule:
 
 ```bash
-git submodule add https://github.com/mateusz28011/juce-webview-agent-bridge.git modules/juce-webview-agent-bridge
+git submodule add https://github.com/mateusz28011/juce-webview-driver.git modules/juce-webview-driver
 ```
 
 or with CMake `FetchContent` (after JUCE has been added, so
@@ -87,21 +87,21 @@ or with CMake `FetchContent` (after JUCE has been added, so
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(juce_webview_agent_bridge
-    GIT_REPOSITORY https://github.com/mateusz28011/juce-webview-agent-bridge.git
+FetchContent_Declare(juce_webview_driver
+    GIT_REPOSITORY https://github.com/mateusz28011/juce-webview-driver.git
     GIT_TAG        v0.7.0)
-FetchContent_MakeAvailable(juce_webview_agent_bridge)
+FetchContent_MakeAvailable(juce_webview_driver)
 ```
 
-The module itself lives in the `juce_webview_agent_bridge/` subdirectory (JUCE requires the
+The module itself lives in the `juce_webview_driver/` subdirectory (JUCE requires the
 module directory to be named exactly like the module ID). Register and link it:
 
 ```cmake
 # Submodule/manual checkout:
-juce_add_module(path/to/juce-webview-agent-bridge/juce_webview_agent_bridge)
+juce_add_module(path/to/juce-webview-driver/juce_webview_driver)
 
 # FetchContent_MakeAvailable registers the module through the repo's root CMakeLists.
-target_link_libraries(MyPlugin PRIVATE juce_webview_agent_bridge)
+target_link_libraries(MyPlugin PRIVATE juce_webview_driver)
 ```
 
 Install the zero-runtime-dependency Node client separately in the project that
@@ -109,51 +109,51 @@ owns your e2e tests. The npm package is independent of how the C++ module was
 fetched and includes strict TypeScript declarations:
 
 ```bash
-npm install --save-dev juce-webview-agent-bridge
-npx juce-webview-agent-bridge ping
+npm install --save-dev juce-webview-driver
+npx juce-webview-driver ping
 ```
 
 ## Integrate (3 steps)
 
 ```cpp
-#include <juce_webview_agent_bridge/juce_webview_agent_bridge.h>
+#include <juce_webview_driver/juce_webview_driver.h>
 
 // 1. Fold capture into the WebView Options (before creating the WebView):
-auto bridge = std::make_shared<web_agent::WebAgentBridge>();
-options = web_agent::withCapture (std::move (options), bridge);   // no-op if disabled
+auto bridge = std::make_shared<webview_driver::WebViewDriver>();
+options = webview_driver::withCapture (std::move (options), bridge);   // no-op if disabled
 
 // 2. After the WebView exists, wire eval + bounds and start listening:
-web_agent::connect (*bridge, *webView, *this /* component for screen bounds */);
+webview_driver::connect (*bridge, *webView, *this /* component for screen bounds */);
 bridge->start();                                                  // 127.0.0.1:8930
 
 // 3. On teardown, before the WebView is destroyed:
 bridge->stop();
 ```
 
-Wrap the calls in `#if WEB_AGENT_BRIDGE_ENABLED` if you keep the `bridge` member
+Wrap the calls in `#if WEBVIEW_DRIVER_ENABLED` if you keep the `bridge` member
 unconditionally (a `std::shared_ptr` to a forward-declared type is fine).
 
 ## Agent skill
 
-`skills/juce-webview-agent-bridge/` is a [skill](https://skills.sh) that teaches a coding agent
+`skills/juce-webview-driver/` is a [skill](https://skills.sh) that teaches a coding agent
 (e.g. Claude Code) to drive the bridge — commands, the e2e client, diagnostic
 techniques, and the gotchas below in agent-digestible form:
 
 ```bash
-npx skills add mateusz28011/juce-webview-agent-bridge
+npx skills add mateusz28011/juce-webview-driver
 ```
 
 ## CLI client
 
-With the npm package installed, use `npx juce-webview-agent-bridge`. A checkout can run the committed
-`tools/web-agent.mjs` build directly without installing dependencies:
+With the npm package installed, use `npx juce-webview-driver`. A checkout can run the committed
+`tools/webview-driver.mjs` build directly without installing dependencies:
 
 ```bash
-npx juce-webview-agent-bridge ping
-npx juce-webview-agent-bridge eval "document.title"
-npx juce-webview-agent-bridge logs                     # live console + network stream
-npx juce-webview-agent-bridge shot /tmp/ui.png         # native compositor shot of the host window
-npx juce-webview-agent-bridge shot /tmp/panel.png "#panel"  # crop to an element
+npx juce-webview-driver ping
+npx juce-webview-driver eval "document.title"
+npx juce-webview-driver logs                     # live console + network stream
+npx juce-webview-driver shot /tmp/ui.png         # native compositor shot of the host window
+npx juce-webview-driver shot /tmp/panel.png "#panel"  # crop to an element
 ```
 
 Other commands: `hello`, `dom`, `click`, `fill`, `capture`, `backlog`,
@@ -165,7 +165,7 @@ connecting). Port and token are normally auto-discovered.
 The package root exports a Playwright-shaped client with client-side auto-waiting:
 
 ```js
-import { connect, expect } from 'juce-webview-agent-bridge';
+import { connect, expect } from 'juce-webview-driver';
 
 const page = await connect({ activate: 'My App' });
 await page.getByTestId('patch-name').fill('warm pad', { enter: true });
@@ -183,8 +183,8 @@ JUCE native calls. Full API and operational guidance: [docs/e2e.md](docs/e2e.md)
 ## Discovery & auth
 
 On `start()` the host binds `127.0.0.1:8930` (scanning upward on collision) and
-publishes `{port, token}` to `~/.web_agent_bridge.json` (plus a per-instance file
-under `~/.web_agent_bridge.d/` so several hosts coexist). Clients read it
+publishes `{port, token}` to `~/.juce_webview_driver.json` (plus a per-instance file
+under `~/.juce_webview_driver.d/` so several hosts coexist). Clients read it
 automatically; a random per-session **token** gates every connection. The wire is
 newline-delimited JSON over TCP (`hello` / `ping` / `auth` / `eval` / `eval_big` / `bounds` /
 `shot` / `shot_stream` / `layerdebug` / `layertree` / `sink_replay` + the unsolicited `sink` event stream) — the full op table,
@@ -227,7 +227,7 @@ cmake --build build/test
 ctest --test-dir build/test --output-on-failure
 
 # reuse a local JUCE checkout instead of downloading it:
-cmake -S tests -B build/test -DWAB_JUCE_DIR=/path/to/JUCE
+cmake -S tests -B build/test -DWVD_JUCE_DIR=/path/to/JUCE
 ```
 
 The JS tests drive the real clients against a mock bridge; the C++ suite drives
