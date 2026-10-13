@@ -1,6 +1,6 @@
 /*
   ==============================================================================
-    Screenshot_mac.mm  (module: juce_webview_agent_bridge)
+    Screenshot_mac.mm  (module: juce_webview_driver)
 
     macOS window capture via ScreenCaptureKit. Captures the app's own window
     through the window-server compositor, so GPU-composited WebGL/canvas content
@@ -12,7 +12,7 @@
 
 #include "Screenshot.h"
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -23,7 +23,7 @@
 
 // "<what>: <description> (domain D code C)" for an NSError; nil-safe, and safe when
 // UTF8String returns NULL.
-static juce::String wabDescribeNSError (NSError* error, const char* what)
+static juce::String wvdDescribeNSError (NSError* error, const char* what)
 {
     juce::String out (what);
     if (error == nil)
@@ -36,11 +36,11 @@ static juce::String wabDescribeNSError (NSError* error, const char* what)
 
 // SCStreamOutput delegate for shot_stream: writes each captured frame to a PNG and
 // notifies via a C++ callback. Obj-C classes must live at global scope (not inside a
-// C++ namespace); the C++ entry point below is in web_agent::detail. This file is
+// C++ namespace); the C++ entry point below is in webview_driver::detail. This file is
 // compiled in the module build, so it is syntax/type-checked on macOS CI, but the
 // live capture path can only be verified on a real macOS window.
 API_AVAILABLE(macos(14.0))
-@interface WABStreamOutput : NSObject <SCStreamOutput, SCStreamDelegate>
+@interface WVDStreamOutput : NSObject <SCStreamOutput, SCStreamDelegate>
 - (instancetype) initWithDir: (juce::File) dir
                       cropPx: (juce::Rectangle<int>) cropPx
                      onFrame: (std::function<void (juce::String, double, int, int)>) onFrame
@@ -48,7 +48,7 @@ API_AVAILABLE(macos(14.0))
 - (int) frameCount;
 @end
 
-@implementation WABStreamOutput
+@implementation WVDStreamOutput
 {
     std::function<void (juce::String, double, int, int)> _onFrame;
     std::function<void (juce::String)>                   _onStopError;
@@ -86,7 +86,7 @@ API_AVAILABLE(macos(14.0))
 {
     juce::ignoreUnused (stream);
     if (_onStopError)
-        _onStopError (wabDescribeNSError (error, "capture stream stopped"));
+        _onStopError (wvdDescribeNSError (error, "capture stream stopped"));
 }
 
 - (void) stream: (SCStream*) stream
@@ -152,7 +152,7 @@ API_AVAILABLE(macos(14.0))
 }
 @end
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 namespace
@@ -228,7 +228,7 @@ void captureWindowAsync (juce::Component& comp,
     juce::File out = target;
     if (out == juce::File())
         out = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                  .getChildFile ("web-agent-shot-" + juce::Uuid().toString() + ".png");
+                  .getChildFile ("webview-driver-shot-" + juce::Uuid().toString() + ".png");
     out.getParentDirectory().createDirectory();
     NSString* path = toNS (out.getFullPathName());
     if (path == nil) { done (false, out, "invalid path encoding"); return; }
@@ -244,7 +244,7 @@ void captureWindowAsync (juce::Component& comp,
         {
             if (error != nil || content == nil)
             {
-                done (false, out, error != nil ? wabDescribeNSError (error, "SCShareableContent failed")
+                done (false, out, error != nil ? wvdDescribeNSError (error, "SCShareableContent failed")
                                                : juce::String ("SCShareableContent returned no content"));
                 return;
             }
@@ -263,7 +263,7 @@ void captureWindowAsync (juce::Component& comp,
                          configuration: cfg
                      completionHandler: ^(CGImageRef img, NSError* e2)
             {
-                if (e2 != nil || img == nullptr) { done (false, out, wabDescribeNSError (e2, "captureImage failed")); return; }
+                if (e2 != nil || img == nullptr) { done (false, out, wvdDescribeNSError (e2, "captureImage failed")); return; }
 
                 CGImageRef toWrite = img;
                 CGImageRef cropped = nullptr;
@@ -353,7 +353,7 @@ void captureStreamAsync (juce::Component& comp,
                               onScreenWindowsOnly: YES
                                 completionHandler: ^(SCShareableContent* content, NSError* error)
         {
-            if (error != nil || content == nil) { run->finish (false, 0, wabDescribeNSError (error, "SCShareableContent failed")); return; }
+            if (error != nil || content == nil) { run->finish (false, 0, wvdDescribeNSError (error, "SCShareableContent failed")); return; }
 
             SCWindow* match = findWindow (content, g.windowID);
             if (match == nil) { run->finish (false, 0, "window not found (Screen Recording permission?)"); return; }
@@ -382,7 +382,7 @@ void captureStreamAsync (juce::Component& comp,
             cfg.pixelFormat          = kCVPixelFormatType_32BGRA;
             cfg.queueDepth           = 6;
 
-            WABStreamOutput* output = [[WABStreamOutput alloc] initWithDir: dir
+            WVDStreamOutput* output = [[WVDStreamOutput alloc] initWithDir: dir
                                                                     cropPx: cropPx
                                                                    onFrame: onFrame
                                                                onStopError: [run] (juce::String why)
@@ -400,14 +400,14 @@ void captureStreamAsync (juce::Component& comp,
 
             // MRC: the queue, stream and output are released together once the run
             // is over (every exit path below).
-            dispatch_queue_t frameQ = dispatch_queue_create ("web_agent.shot_stream", DISPATCH_QUEUE_SERIAL);
+            dispatch_queue_t frameQ = dispatch_queue_create ("webview_driver.shot_stream", DISPATCH_QUEUE_SERIAL);
             NSError* addErr = nil;
             if (! [stream addStreamOutput: output type: SCStreamOutputTypeScreen sampleHandlerQueue: frameQ error: &addErr])
             {
                 [stream release];
                 [output release];
                 dispatch_release (frameQ);
-                run->finish (false, 0, wabDescribeNSError (addErr, "addStreamOutput failed"));
+                run->finish (false, 0, wvdDescribeNSError (addErr, "addStreamOutput failed"));
                 return;
             }
 
@@ -418,7 +418,7 @@ void captureStreamAsync (juce::Component& comp,
                     [stream release];
                     [output release];
                     dispatch_release (frameQ);
-                    run->finish (false, 0, wabDescribeNSError (startErr, "startCapture failed"));
+                    run->finish (false, 0, wvdDescribeNSError (startErr, "startCapture failed"));
                     return;
                 }
 
@@ -476,7 +476,7 @@ void captureStreamAsync (juce::Component& comp,
                         if (cancelled)
                             run->finish (false, count, "stream cancelled: the bridge is stopping");
                         else // frames are on disk; a stop hiccup is only a warning
-                            run->finish (true, count, stopErr != nil ? wabDescribeNSError (stopErr, "stopCapture warning")
+                            run->finish (true, count, stopErr != nil ? wvdDescribeNSError (stopErr, "stopCapture warning")
                                                                      : juce::String());
                     }];
                 });
@@ -501,6 +501,6 @@ bool streamCaptureOsSupported()
 
 void waitForCaptureWorkers (int) {}
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

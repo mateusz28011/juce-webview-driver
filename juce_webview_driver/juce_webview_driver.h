@@ -3,12 +3,12 @@
 
   BEGIN_JUCE_MODULE_DECLARATION
 
-   ID:                 juce_webview_agent_bridge
+   ID:                 juce_webview_driver
    vendor:             mateusz28011
    version:            0.7.0
-   name:               Web Agent Bridge
+   name:               WebView Driver
    description:        Debug-only loopback bridge that lets an external agent drive a live juce::WebBrowserComponent — eval JS, stream console/network, query on-screen bounds for OS-level screenshots. No CDP required (works on WKWebView and WebView2).
-   website:            https://github.com/mateusz28011/juce-webview-agent-bridge
+   website:            https://github.com/mateusz28011/juce-webview-driver
    license:            MIT
    minimumCppStandard: 17
 
@@ -31,7 +31,7 @@
 
     Defaults to JUCE_DEBUG: the bridge (and the loopback port) exist only in
     debug builds and compile to nothing in release. Override by defining
-    WEB_AGENT_BRIDGE_ENABLED=1 / 0 before this header is reached, or via your
+    WEBVIEW_DRIVER_ENABLED=1 / 0 before this header is reached, or via your
     build system, if you need different behaviour.
 
     SECURITY: the bridge evaluates arbitrary JavaScript in the WebView. Access
@@ -39,8 +39,8 @@
     the discovery file, so loopback is the real trust boundary. You should
     never ship it enabled in a release/production artifact.
 */
-#ifndef WEB_AGENT_BRIDGE_ENABLED
- #define WEB_AGENT_BRIDGE_ENABLED JUCE_DEBUG
+#ifndef WEBVIEW_DRIVER_ENABLED
+ #define WEBVIEW_DRIVER_ENABLED JUCE_DEBUG
 #endif
 
 /** This module's version, mirroring the `version:` field of the declaration
@@ -48,6 +48,6 @@
     reply so a client that finds a capability missing can name the exact module
     build the host embeds. scripts/release.sh owns both sites and verifies them.
 */
-#define WEB_AGENT_BRIDGE_VERSION "0.7.0"
+#define WEBVIEW_DRIVER_VERSION "0.7.0"
 
-#include "detail/WebAgentBridge.h"
+#include "detail/WebViewDriver.h"

@@ -7,16 +7,16 @@ changes bump `protocolVersion` (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 ## Discovery & auth
 
 On `start()` the host binds `127.0.0.1:8930` (scanning up to 8 ports on collision) and
-writes the discovery record to **`~/.web_agent_bridge.json`** (deleted on
+writes the discovery record to **`~/.juce_webview_driver.json`** (deleted on
 stop), `0600` so the plaintext token stays owner-only. It also registers a
-per-instance file **`~/.web_agent_bridge.d/<port>.json`**, so several hosts (e.g.
+per-instance file **`~/.juce_webview_driver.d/<port>.json`**, so several hosts (e.g.
 multiple plugin instances in a DAW) don't clobber each other in the single legacy
 file. The record is `{port, token, pid, processName, startedAt, label?}`: beyond the
 `port`/`token` needed to connect, it carries identity so a user can tell several
 copies of the same plugin apart — `pid`/`processName`/`startedAt` are module-derived,
 `label` is whatever the embedder passed to `setInstanceLabel()`. The client enumerates
 that directory and picks the requested `--port` (or the lowest), falling back to the
-legacy file for an older single-instance host; `web-agent instances` prints the full
+legacy file for an older single-instance host; `juce-webview-driver instances` prints the full
 list without connecting. The client reads it automatically — no need to know the port. A random
 **session token** is required: a connection must present it (in any message, e.g.
 `{"op":"auth","token":"…"}`) before any op runs or before it receives the sink

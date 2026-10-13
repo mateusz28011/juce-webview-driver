@@ -1,5 +1,5 @@
 {
-  "name": "juce-webview-agent-bridge",
+  "name": "juce-webview-driver",
   "version": "0.7.0",
   "description": "Typed, zero-dependency E2E client and CLI for driving live JUCE WebViews over a debug-only loopback bridge, without CDP.",
   "keywords": [
@@ -32,7 +32,7 @@
     }
   },
   "bin": {
-    "juce-webview-agent-bridge": "tools/web-agent.mjs"
+    "juce-webview-driver": "tools/webview-driver.mjs"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -50,7 +50,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mateusz28011/juce-webview-agent-bridge.git"
+    "url": "git+https://github.com/mateusz28011/juce-webview-driver.git"
   },
   "engines": {
     "node": ">=22"

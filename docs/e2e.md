@@ -64,8 +64,8 @@ stutter. Pass `motionSelector` to also report `motion`: whether any matched elem
 ## Action log
 
 `connect()` writes a timestamped line for every action (click / fill / drag /
-backend / fire) to **one file** — `$WAE_LOG_FILE`, or `connect({ logFile })`, else
-`<tmpdir>/web_agent_e2e.log` — and echoes to stderr so a live run shows progress
+backend / fire) to **one file** — `$WEBVIEW_DRIVER_LOG_FILE`, or `connect({ logFile })`, else
+`<tmpdir>/webview_driver_e2e.log` — and echoes to stderr so a live run shows progress
 instead of going silent. Pass `connect({ log: fn })` to route lines yourself, or
 `{ logEcho: false }` to keep them file-only; `page.logFile` is where they land. The
 `fileLogger(path)` helper is exported if you want to build your own.
@@ -84,9 +84,9 @@ sub-threshold slices — surrogate-pair-safe, so a chunk boundary never splits a
 surrogate pair. One socket round-trip instead of N.
 
 Against an older host (no `eval_big`), `readBig` falls back to a client-side loop:
-`window.__wae.bigInit(key, expr)` stores the converted value under a per-call key
+`window.__wvd.bigInit(key, expr)` stores the converted value under a per-call key
 (same conversion and surrogate-safe slicing as the host path, so concurrent reads
-never mix) and returns its length, then repeated `window.__wae.bigAt(key, offset, chunk)`
+never mix) and returns its length, then repeated `window.__wvd.bigAt(key, offset, chunk)`
 calls pull it in `{ chunk }` slices, and `bigFree(key)` releases it (default
 32 KB — 400 KB in ~13 chunks / tens of ms). The `chunk` option only affects this
 fallback path; it's ignored on a host with native `eval_big`, since the host picks its

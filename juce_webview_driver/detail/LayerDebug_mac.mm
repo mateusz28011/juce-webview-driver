@@ -6,7 +6,7 @@
   ==============================================================================
 */
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include "LayerDebug.h"
 
@@ -14,7 +14,7 @@
 #import <WebKit/WebKit.h>
 #import <objc/message.h>
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 static void collectWebViews (NSView* view, NSMutableArray<WKWebView*>* out)
@@ -111,6 +111,6 @@ std::string getCaLayerTreeAsText (juce::Component* scope)
     return utf8 != nullptr ? std::string (utf8) : std::string();
 }
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
 #endif

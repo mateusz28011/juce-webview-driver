@@ -1,7 +1,7 @@
 /*
   ==============================================================================
 
-    WebAgentBridge.h  (module: juce_webview_agent_bridge)
+    WebViewDriver.h  (module: juce_webview_driver)
 
     A debug-only "mini-CDP" bridge that lets an external agent drive a live
     juce::WebBrowserComponent over a loopback TCP socket: evaluate JS, stream
@@ -15,11 +15,11 @@
     INTEGRATION (3 steps — see README.md):
 
         // 1. before creating the WebView, fold capture into its Options:
-        auto bridge = std::make_shared<web_agent::WebAgentBridge>();
-        options = web_agent::withCapture (std::move (options), bridge);
+        auto bridge = std::make_shared<webview_driver::WebViewDriver>();
+        options = webview_driver::withCapture (std::move (options), bridge);
 
         // 2. after the WebView exists, wire eval + bounds and start listening:
-        web_agent::connect (*bridge, webView, editorComponent);
+        webview_driver::connect (*bridge, webView, editorComponent);
         bridge->start();   // 127.0.0.1:8930 by default
 
         // 3. on teardown (before the WebView is destroyed):
@@ -37,16 +37,16 @@
 
 #pragma once
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include <functional>
 #include <memory>
 
-namespace web_agent
+namespace webview_driver
 {
 
 //==============================================================================
-class WebAgentBridge
+class WebViewDriver
 {
 public:
     /** ok=true  -> result holds the evaluation value.
@@ -78,15 +78,15 @@ public:
                                                     juce::Rectangle<int> viewportCrop,
                                                     StreamFrameCallback onFrame, StreamDoneCallback onDone)>;
 
-    WebAgentBridge();
-    ~WebAgentBridge();
+    WebViewDriver();
+    ~WebViewDriver();
 
     /** Bind + listen on 127.0.0.1, trying a few ports up from preferredPort.
         Returns the bound port, or 0 on failure.
 
         @param discoveryFileOverride  where to publish the {port,token} JSON used
                for client auto-discovery. Empty (the default) uses
-               ~/.web_agent_bridge.json. Override it to isolate a test run, or to
+               ~/.juce_webview_driver.json. Override it to isolate a test run, or to
                give each instance its own file when several embed the bridge at
                once (the default shared path would otherwise collide).
         @param allowUnauthenticatedLoopback  what to do when the session token
@@ -142,9 +142,9 @@ private:
 
     // connect() also scopes layerdebug/layertree to the bound WebView and ties
     // shot_stream cancellation to stop(); both live in the private Impl.
-    friend void connect (WebAgentBridge&, juce::WebBrowserComponent&, juce::Component&);
+    friend void connect (WebViewDriver&, juce::WebBrowserComponent&, juce::Component&);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WebAgentBridge)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WebViewDriver)
 };
 
 //==============================================================================
@@ -166,12 +166,12 @@ struct CaptureOptions
 
 /** Folds the capture layer into a WebBrowserComponent::Options:
       - injects the page capture script (console/network) at document-start,
-      - registers the "__webAgentSink" native function that feeds pushSink().
+      - registers the "__webviewDriverSink" native function that feeds pushSink().
     `captureOptions` selects which hooks the script installs (default: all).
     Returns the augmented Options (value semantics, chainable). */
 juce::WebBrowserComponent::Options
 withCapture (juce::WebBrowserComponent::Options options,
-             std::weak_ptr<WebAgentBridge> bridge,
+             std::weak_ptr<WebViewDriver> bridge,
              CaptureOptions captureOptions = {});
 
 /** Wires the bridge's eval, bounds and screenshot callbacks to a live WebView,
@@ -180,10 +180,10 @@ withCapture (juce::WebBrowserComponent::Options options,
     this WebView only. Holds the components weakly (juce::Component::SafePointer),
     so it is safe even if the WebView is destroyed before the bridge is stopped.
     stop() clears these callbacks, so call connect() again before a restart. */
-void connect (WebAgentBridge& bridge,
+void connect (WebViewDriver& bridge,
               juce::WebBrowserComponent& webView,
               juce::Component& boundsComponent);
 
-} // namespace web_agent
+} // namespace webview_driver
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

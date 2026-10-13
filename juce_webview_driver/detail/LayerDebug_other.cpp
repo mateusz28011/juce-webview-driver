@@ -5,11 +5,11 @@
   ==============================================================================
 */
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include "LayerDebug.h"
 
-namespace web_agent::detail
+namespace webview_driver::detail
 {
 
 bool setCompositingDebugOverlays (juce::Component*, bool)
@@ -22,6 +22,6 @@ std::string getCaLayerTreeAsText (juce::Component*)
     return {};
 }
 
-} // namespace web_agent::detail
+} // namespace webview_driver::detail
 
 #endif

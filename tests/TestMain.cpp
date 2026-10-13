@@ -1,6 +1,6 @@
 /*
   ==============================================================================
-    TestMain.cpp  (module: juce_webview_agent_bridge — standalone test build only)
+    TestMain.cpp  (module: juce_webview_driver — standalone test build only)
 
     Custom Catch2 entry point: the JUCE GUI subsystem must initialise before any
     test runs, because the bridge marshals eval/bounds/shot replies onto the

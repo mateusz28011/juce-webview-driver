@@ -1,13 +1,13 @@
 /*
   ==============================================================================
-    WebAgentBridge.cpp  (module: juce_webview_agent_bridge)  — see WebAgentBridge.h
+    WebViewDriver.cpp  (module: juce_webview_driver)  — see WebViewDriver.h
   ==============================================================================
 */
 
 // Windows socket + CSPRNG APIs. This is the first Windows system header in the
 // module's translation unit (JUCE's public headers never include <windows.h>), so
 // <winsock2.h> can precede <windows.h> as it must; NOMINMAX keeps min/max usable.
-#if JUCE_WINDOWS && WEB_AGENT_BRIDGE_ENABLED
+#if JUCE_WINDOWS && WEBVIEW_DRIVER_ENABLED
  #ifndef NOMINMAX
   #define NOMINMAX
  #endif
@@ -21,9 +21,9 @@
  #endif
 #endif
 
-#include "WebAgentBridge.h"
+#include "WebViewDriver.h"
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
 #include "CaptureScript.h"
 #include "LayerDebug.h"
@@ -56,7 +56,7 @@
  #include <process.h>    // _getpid() — process id in the discovery record
 #endif
 
-namespace web_agent
+namespace webview_driver
 {
 
 namespace
@@ -559,7 +559,7 @@ struct CaptureTicket
 
 
 //==============================================================================
-struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge::Impl>
+struct WebViewDriver::Impl : public std::enable_shared_from_this<WebViewDriver::Impl>
 {
     // One client. Replies and sink frames are QUEUED here from any thread (the
     // message thread included, which therefore never blocks on socket I/O); the
@@ -636,7 +636,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 
             if (overflow)
             {
-                DBG ("[web_agent] client fell " << (int) (kMaxOutboundBytes >> 20) << " MB behind — closing connection");
+                DBG ("[webview_driver] client fell " << (int) (kMaxOutboundBytes >> 20) << " MB behind — closing connection");
                 requestAbort();
             }
             else
@@ -655,7 +655,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
                 queue.erase (it);
                 if (++droppedSinkFrames % 256 == 1)
                 {
-                    DBG ("[web_agent] sink backpressure: dropped " << (int) droppedSinkFrames << " event(s) — client too slow");
+                    DBG ("[webview_driver] sink backpressure: dropped " << (int) droppedSinkFrames << " event(s) — client too slow");
                 }
                 return true;
             }
@@ -691,7 +691,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
                         }
                         if (queueCv.wait_until (lk, drainDeadline) == std::cv_status::timeout && ! wakeUp())
                         {
-                            DBG ("[web_agent] closing a half-closed connection with " << outstanding << " unanswered request(s)");
+                            DBG ("[webview_driver] closing a half-closed connection with " << outstanding << " unanswered request(s)");
                             break;
                         }
                     }
@@ -779,7 +779,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 
     juce::String token;          // session auth token ("" = auth disabled)
     juce::File   discoveryFile;  // {port,token} written here for client auto-discovery (legacy single file)
-    juce::File   instanceFile;   // per-port file in <dir>/.web_agent_bridge.d so several hosts don't collide
+    juce::File   instanceFile;   // per-port file in <dir>/.juce_webview_driver.d so several hosts don't collide
     juce::String startedAt;      // ISO-8601, captured at start(); part of the discovery record
     juce::String instanceLabel;  // optional embedder-supplied label to disambiguate instances
 
@@ -900,7 +900,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
     {
         if (exceedsJsonDepth (data, len, kMaxJsonDepth))
         {
-            DBG ("[web_agent] ignoring a request nested deeper than " << kMaxJsonDepth << " levels");
+            DBG ("[webview_driver] ignoring a request nested deeper than " << kMaxJsonDepth << " levels");
             return true;
         }
 
@@ -966,7 +966,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
         // The module build the host embeds. protocolVersion only moves on a
         // BREAKING change, so it cannot tell a client whose plugin was built
         // against an older pin; this names that build outright. Additive field.
-        r->setProperty ("moduleVersion", WEB_AGENT_BRIDGE_VERSION);
+        r->setProperty ("moduleVersion", WEBVIEW_DRIVER_VERSION);
 
         const bool streamAvailable = isStreamAvailable();
         juce::Array<juce::var> ops;
@@ -1083,14 +1083,14 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
     // evaluateJavascript stalls on >~100KB single returns, so the host runs the
     // expression once, stashes its string form in a page global keyed per request,
     // then reads it back in <100KB slices and reassembles. Self-contained — uses its
-    // own `window.__webAgentBig` map, not the e2e client's `__wae` helpers.
+    // own `window.__webviewDriverBig` map, not the e2e client's `__wvd` helpers.
     //
     // Page contract (the Node client's fallback implements the identical one):
     //   * `code` must be an EXPRESSION; it is wrapped as "(\n" + code + "\n)", so a
     //     trailing `// comment` is fine but statements are not.
     //   * value -> string: undefined/null -> ''; a string as-is; anything else
     //     JSON.stringify(v), and '' if that yields undefined.
-    //   * stored at window.__webAgentBig[key] (key unique per request, so
+    //   * stored at window.__webviewDriverBig[key] (key unique per request, so
     //     concurrent eval_big calls never interfere); deleted after the last chunk
     //     and on any error.
     //   * chunks are at most kEvalBigChunk UTF-16 units, one shorter when a chunk
@@ -1120,14 +1120,14 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
             return "/*eval_big:init " + key + "*/(function(){var v=(\n" + code + "\n);"
                    "var s=(v===undefined||v===null)?'':(typeof v==='string'?v:JSON.stringify(v));"
                    "if(s===undefined)s='';"
-                   "var g=window.__webAgentBig;if(!g||typeof g!=='object')g=window.__webAgentBig={};"
+                   "var g=window.__webviewDriverBig;if(!g||typeof g!=='object')g=window.__webviewDriverBig={};"
                    "g['" + key + "']=s;return s.length;})()";
         }
 
         juce::String chunkScript() const
         {
             return "/*eval_big:chunk " + key + " " + juce::String (off) + "*/(function(){"
-                   "var g=window.__webAgentBig,s=g&&typeof g==='object'?g['" + key + "']:undefined;"
+                   "var g=window.__webviewDriverBig,s=g&&typeof g==='object'?g['" + key + "']:undefined;"
                    "if(typeof s!=='string')return null;"
                    "var o=" + juce::String (off) + ",e=Math.min(o+" + juce::String (kEvalBigChunk) + ",s.length);"
                    "if(e<s.length&&e-o>1){var c=s.charCodeAt(e-1);if(c>=0xD800&&c<=0xDBFF)e--;}"
@@ -1136,7 +1136,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 
         juce::String cleanupScript() const
         {
-            return "(function(){var g=window.__webAgentBig;if(g&&typeof g==='object')delete g['" + key + "'];return 0;})()";
+            return "(function(){var g=window.__webviewDriverBig;if(g&&typeof g==='object')delete g['" + key + "'];return 0;})()";
         }
 
         void start (const juce::String& code)
@@ -1390,7 +1390,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 
             const juce::File dir = dirStr.isEmpty()
                                        ? juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                             .getChildFile ("web-agent-stream-" + juce::Uuid().toString())
+                                             .getChildFile ("webview-driver-stream-" + juce::Uuid().toString())
                                        : resolveClientPath (dirStr);
             dir.createDirectory();
 
@@ -1445,7 +1445,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
             if (! conn->authed.load()
                 && juce::Time::getMillisecondCounter() - conn->openedAtMs >= (juce::uint32) kAuthDeadlineMs)
             {
-                DBG ("[web_agent] closing a connection that did not authenticate within " << kAuthDeadlineMs << " ms");
+                DBG ("[webview_driver] closing a connection that did not authenticate within " << kAuthDeadlineMs << " ms");
                 break;
             }
 
@@ -1467,7 +1467,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
                 const size_t len  = nl - start;
                 if (len > kMaxLineBytes || ! acceptsPreAuthLine (*conn, line, len))
                 {
-                    DBG ("[web_agent] request line over the size limit (or oversized and unauthenticated) — closing connection");
+                    DBG ("[webview_driver] request line over the size limit (or oversized and unauthenticated) — closing connection");
                     keepReading = false;
                     break;
                 }
@@ -1477,7 +1477,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 
             if (acc.size() > kMaxLineBytes) // a single line flooding past the cap: drop the connection
             {
-                DBG ("[web_agent] line exceeded " << (int) kMaxLineBytes << " bytes without a newline — closing connection");
+                DBG ("[webview_driver] line exceeded " << (int) kMaxLineBytes << " bytes without a newline — closing connection");
                 break;
             }
 
@@ -1489,7 +1489,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
                 const auto first = acc.find_first_not_of (" \t\r");
                 if (first == std::string::npos || acc[first] != '{')
                 {
-                    DBG ("[web_agent] oversized unauthenticated line is not a JSON object — closing connection");
+                    DBG ("[webview_driver] oversized unauthenticated line is not a JSON object — closing connection");
                     break;
                 }
             }
@@ -1525,7 +1525,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
         }
         catch (...)
         {
-            DBG ("[web_agent] could not start connection threads — dropping client");
+            DBG ("[webview_driver] could not start connection threads — dropping client");
             {
                 std::lock_guard<std::mutex> lk (connMutex);
                 connections.erase (std::remove (connections.begin(), connections.end(), conn), connections.end());
@@ -1560,7 +1560,7 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
                 { std::lock_guard<std::mutex> lk (connMutex); live = connections.size(); }
                 if ((int) live >= maxc)
                 {
-                    DBG ("[web_agent] connection cap reached (" << maxc << "); rejecting new client");
+                    DBG ("[webview_driver] connection cap reached (" << maxc << "); rejecting new client");
                     continue; // socket's destructor closes it; the client sees a clean disconnect
                 }
             }
@@ -1585,10 +1585,10 @@ struct WebAgentBridge::Impl : public std::enable_shared_from_this<WebAgentBridge
 };
 
 //==============================================================================
-WebAgentBridge::WebAgentBridge() : impl (std::make_shared<Impl>()) {}
-WebAgentBridge::~WebAgentBridge() { stop(); }
+WebViewDriver::WebViewDriver() : impl (std::make_shared<Impl>()) {}
+WebViewDriver::~WebViewDriver() { stop(); }
 
-int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
+int WebViewDriver::start (int preferredPort, juce::File discoveryFileOverride,
                            bool allowUnauthenticatedLoopback)
 {
     if (impl->running.load()) return impl->port;
@@ -1596,7 +1596,7 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
     const auto token = generateSessionToken();
     if (token.isEmpty())
     {
-        DBG ("[web_agent] refusing to start: no OS random source for the session token");
+        DBG ("[webview_driver] refusing to start: no OS random source for the session token");
         return 0;
     }
 
@@ -1615,7 +1615,7 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
 
     if (port == 0)
     {
-        DBG ("[web_agent] failed to bind a loopback port near " << preferredPort);
+        DBG ("[webview_driver] failed to bind a loopback port near " << preferredPort);
         return 0;
     }
 
@@ -1632,13 +1632,13 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
     impl->discoveryFile = (discoveryFileOverride != juce::File())
                               ? discoveryFileOverride
                               : juce::File::getSpecialLocation (juce::File::userHomeDirectory)
-                                    .getChildFile (".web_agent_bridge.json");
+                                    .getChildFile (".juce_webview_driver.json");
     {
         auto d = impl->makeDiscoveryRecord();
         // The token sits in plaintext, so the file is owner-only (0600) from the
         // moment it exists (defense in depth on a shared host).
         const bool wrote = writeOwnerOnlyFile (impl->discoveryFile, juce::JSON::toString (juce::var (d.get())));
-        DBG ("[web_agent] discovery " << (wrote ? "wrote " : "FAILED ") << impl->discoveryFile.getFullPathName());
+        DBG ("[webview_driver] discovery " << (wrote ? "wrote " : "FAILED ") << impl->discoveryFile.getFullPathName());
         if (! wrote)
         {
             if (allowUnauthenticatedLoopback)
@@ -1651,7 +1651,7 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
                 // silently drop authentication just because the token file is
                 // unwritable. Refuse to start; the embedder opts into the open bridge
                 // explicitly via allowUnauthenticatedLoopback.
-                DBG ("[web_agent] refusing to start: cannot publish the session token to "
+                DBG ("[webview_driver] refusing to start: cannot publish the session token to "
                      << impl->discoveryFile.getFullPathName()
                      << " (pass allowUnauthenticatedLoopback=true to run without a token)");
                 impl->listener.reset();
@@ -1664,12 +1664,12 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
         }
     }
 
-    // Also register a per-instance file in a sibling .web_agent_bridge.d directory so
+    // Also register a per-instance file in a sibling .juce_webview_driver.d directory so
     // several hosts (e.g. multiple plugin instances in a DAW) don't clobber each other's
     // {port,token} in the single legacy file. Clients enumerate this dir and pick one;
     // the legacy file above stays for backward compatibility / older clients.
     {
-        auto dir = impl->discoveryFile.getParentDirectory().getChildFile (".web_agent_bridge.d");
+        auto dir = impl->discoveryFile.getParentDirectory().getChildFile (".juce_webview_driver.d");
         dir.createDirectory();
         impl->instanceFile = dir.getChildFile (juce::String (port) + ".json");
 
@@ -1689,16 +1689,16 @@ int WebAgentBridge::start (int preferredPort, juce::File discoveryFileOverride,
     }
     catch (...)
     {
-        DBG ("[web_agent] could not start the accept thread");
+        DBG ("[webview_driver] could not start the accept thread");
         stop();
         return 0;
     }
 
-    DBG ("[web_agent] listening on 127.0.0.1:" << port);
+    DBG ("[webview_driver] listening on 127.0.0.1:" << port);
     return port;
 }
 
-void WebAgentBridge::stop()
+void WebViewDriver::stop()
 {
     if (! impl->running.exchange (false))
         return;
@@ -1716,7 +1716,7 @@ void WebAgentBridge::stop()
     // wait still has its reply delivered; teardown below then ends every writer.
     if (! impl->captures->waitIdle (kStopCaptureWaitMs))
     {
-        DBG ("[web_agent] stop(): a capture did not finish within " << kStopCaptureWaitMs << " ms");
+        DBG ("[webview_driver] stop(): a capture did not finish within " << kStopCaptureWaitMs << " ms");
     }
     detail::waitForCaptureWorkers (kStopCaptureWaitMs);
 
@@ -1741,50 +1741,50 @@ void WebAgentBridge::stop()
     }
 }
 
-bool WebAgentBridge::isRunning() const noexcept { return impl->running.load(); }
-int  WebAgentBridge::getPort()   const noexcept { return impl->port; }
+bool WebViewDriver::isRunning() const noexcept { return impl->running.load(); }
+int  WebViewDriver::getPort()   const noexcept { return impl->port; }
 
-void WebAgentBridge::setEvalFunction (EvalFn fn)
+void WebViewDriver::setEvalFunction (EvalFn fn)
 {
     std::lock_guard<std::mutex> lk (impl->fnMutex);
     impl->evalFn = std::move (fn);
 }
 
-void WebAgentBridge::setBoundsFunction (BoundsFn fn)
+void WebViewDriver::setBoundsFunction (BoundsFn fn)
 {
     std::lock_guard<std::mutex> lk (impl->fnMutex);
     impl->boundsFn = std::move (fn);
 }
 
-void WebAgentBridge::setScreenshotFunction (ScreenshotFn fn)
+void WebViewDriver::setScreenshotFunction (ScreenshotFn fn)
 {
     std::lock_guard<std::mutex> lk (impl->fnMutex);
     impl->screenshotFn = std::move (fn);
 }
 
-void WebAgentBridge::setStreamFunction (StreamFn fn)
+void WebViewDriver::setStreamFunction (StreamFn fn)
 {
     std::lock_guard<std::mutex> lk (impl->fnMutex);
     impl->streamFn = std::move (fn);
 }
 
-void WebAgentBridge::setMaxConnections (int maxConnections)
+void WebViewDriver::setMaxConnections (int maxConnections)
 {
     impl->maxConnections.store (juce::jmax (0, maxConnections));
 }
 
-void WebAgentBridge::setSinkLimits (int queueMax, int historyMax)
+void WebViewDriver::setSinkLimits (int queueMax, int historyMax)
 {
     impl->sinkQueueMax.store   ((size_t) juce::jmax (1, queueMax)); // a 0 queue would drop everything; floor at 1
     impl->sinkHistoryMax.store ((size_t) juce::jmax (0, historyMax));
 }
 
-void WebAgentBridge::setInstanceLabel (const juce::String& label)
+void WebViewDriver::setInstanceLabel (const juce::String& label)
 {
     impl->instanceLabel = label; // published by makeDiscoveryRecord() at start()
 }
 
-void WebAgentBridge::pushSink (const juce::var& event)
+void WebViewDriver::pushSink (const juce::var& event)
 {
     // Assign a monotonic seq, keep a copy for replay, then queue only; each
     // connection's write thread does the socket I/O. Safe from any thread.
@@ -1793,7 +1793,7 @@ void WebAgentBridge::pushSink (const juce::var& event)
 
 //==============================================================================
 juce::WebBrowserComponent::Options
-withCapture (juce::WebBrowserComponent::Options options, std::weak_ptr<WebAgentBridge> bridge,
+withCapture (juce::WebBrowserComponent::Options options, std::weak_ptr<WebViewDriver> bridge,
              CaptureOptions captureOptions)
 {
     // Publish the enabled-hook set so the page script installs only what's asked
@@ -1808,12 +1808,12 @@ withCapture (juce::WebBrowserComponent::Options options, std::weak_ptr<WebAgentB
     hooks->setProperty ("sse",        captureOptions.eventSource);
     hooks->setProperty ("beacon",     captureOptions.beacon);
     hooks->setProperty ("navigation", captureOptions.navigation);
-    const auto prelude = "window.__webAgentCaptureHooks = "
+    const auto prelude = "window.__webviewDriverCaptureHooks = "
                        + juce::JSON::toString (juce::var (hooks.get()), true) + ";\n";
 
     return options
         .withUserScript (prelude + juce::String (kCaptureScript))
-        .withNativeFunction ("__webAgentSink",
+        .withNativeFunction ("__webviewDriverSink",
             [bridge] (const juce::Array<juce::var>& args,
                       juce::WebBrowserComponent::NativeFunctionCompletion completion)
             {
@@ -1823,12 +1823,12 @@ withCapture (juce::WebBrowserComponent::Options options, std::weak_ptr<WebAgentB
             });
 }
 
-void connect (WebAgentBridge& bridge, juce::WebBrowserComponent& webView, juce::Component& boundsComponent)
+void connect (WebViewDriver& bridge, juce::WebBrowserComponent& webView, juce::Component& boundsComponent)
 {
     juce::Component::SafePointer<juce::WebBrowserComponent> wv (&webView);
     juce::Component::SafePointer<juce::Component>           bc (&boundsComponent);
 
-    bridge.setEvalFunction ([wv] (const juce::String& code, WebAgentBridge::EvalCallback cb) mutable
+    bridge.setEvalFunction ([wv] (const juce::String& code, WebViewDriver::EvalCallback cb) mutable
     {
         if (auto* w = wv.getComponent())
         {
@@ -1855,7 +1855,7 @@ void connect (WebAgentBridge& bridge, juce::WebBrowserComponent& webView, juce::
         return {};
     });
 
-    bridge.setScreenshotFunction ([bc] (juce::File target, juce::Rectangle<int> crop, WebAgentBridge::ScreenshotCallback cb) mutable
+    bridge.setScreenshotFunction ([bc] (juce::File target, juce::Rectangle<int> crop, WebViewDriver::ScreenshotCallback cb) mutable
     {
         if (auto* c = bc.getComponent())
             detail::captureWindowAsync (*c, target, crop, [cb] (bool ok, juce::File png, juce::String err)
@@ -1880,8 +1880,8 @@ void connect (WebAgentBridge& bridge, juce::WebBrowserComponent& webView, juce::
     // running stream early.
     auto captures = bridge.impl->captures;
     bridge.setStreamFunction ([bc, captures] (juce::File dir, int fps, int durationMs, juce::Rectangle<int> crop,
-                                              WebAgentBridge::StreamFrameCallback onFrame,
-                                              WebAgentBridge::StreamDoneCallback onDone) mutable
+                                              WebViewDriver::StreamFrameCallback onFrame,
+                                              WebViewDriver::StreamDoneCallback onDone) mutable
     {
         const auto generation = captures->stopGeneration.load();
         auto shouldStop = [captures, generation] { return captures->stopGeneration.load() != generation; };
@@ -1895,6 +1895,6 @@ void connect (WebAgentBridge& bridge, juce::WebBrowserComponent& webView, juce::
    #endif
 }
 
-} // namespace web_agent
+} // namespace webview_driver
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

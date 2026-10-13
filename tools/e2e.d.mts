@@ -122,7 +122,7 @@ export declare function activateApp(appName?: string): Promise<boolean>;
 /** A logger that appends timestamped action lines to ONE file and (by default)
  *  echoes them to stderr so a live run shows progress instead of going silent.
  *  Generic/agnostic: it records whatever the caller logs. connect() wires one up
- *  automatically (override via { log } or { logFile }, or $WAE_LOG_FILE). */
+ *  automatically (override via { log } or { logFile }, or $WEBVIEW_DRIVER_LOG_FILE). */
 /** Parse a `layertree` op dump (the `_caLayerTreeAsText` format) into a flat
     array of layer bounds `{ x, y, width, height }` — the programmatic
     compositing-layer census. Pure; pairs with `page.layerTree()`:
@@ -164,12 +164,12 @@ declare class Session {
     private _failAll;
     request(obj: ProtocolMessage, { timeoutMs }?: RequestOptions): Promise<ProtocolMessage>;
     evalRaw<T = unknown>(code: string, opts?: RequestOptions): Promise<T>;
-    /** (Re-)inject the page-side helper bundle (window.__wae). */
+    /** (Re-)inject the page-side helper bundle (window.__wvd). */
     injectHelpers(): Promise<void>;
-    /** Eval a snippet that needs window.__wae. A page reload wipes the helpers, so
+    /** Eval a snippet that needs window.__wvd. A page reload wipes the helpers, so
         when they are missing the snippet is not run; the bundle is re-injected and
         the snippet retried once — no stale-helper failures after a navigation. */
-    evalWae<T = unknown>(code: string, opts?: RequestOptions): Promise<T>;
+    evalWvd<T = unknown>(code: string, opts?: RequestOptions): Promise<T>;
     close(): void;
 }
 export declare function connect({ host, port, token, timeout, interval, log, logFile, logEcho, backendTimeoutMs, activate }?: ConnectOptions): Promise<Page>;

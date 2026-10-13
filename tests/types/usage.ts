@@ -10,14 +10,14 @@ import {
   type NetworkEventData,
   type Page,
   type RenderPerfResult,
-} from 'juce-webview-agent-bridge';
+} from 'juce-webview-driver';
 import {
   CLIENT_PROTOCOL_VERSION,
   DEFAULT_PORT,
   clientVersion,
   loadDiscovery,
   type BridgeCapabilities,
-} from 'juce-webview-agent-bridge/shared';
+} from 'juce-webview-driver/shared';
 
 async function exercisePublicTypes(page: Page): Promise<void> {
   const bpm = await page.backend<number>('getBpm');

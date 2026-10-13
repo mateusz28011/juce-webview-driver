@@ -1,27 +1,27 @@
 #!/usr/bin/env node
 /*
- * CLI client for juce_webview_agent_bridge.
+ * CLI client for juce_webview_driver.
  *
  * Talks the newline-delimited JSON protocol to a plugin/app that embeds the
- * web_agent_bridge module, so an external agent gets a browser-like toolkit on
+ * juce_webview_driver module, so an external agent gets a browser-like toolkit on
  * the live WebView: eval, console/network stream, DOM, click/fill, screenshot.
  *
  * Usage:
- *   juce-webview-agent-bridge eval "<js>"            run JS, print result/error
- *   juce-webview-agent-bridge dom [selector]         outerHTML of selector (or <html>)
- *   juce-webview-agent-bridge click <selector>       element.click()  (isTrusted=false)
- *   juce-webview-agent-bridge fill <selector> <val>  React-safe value set + input event
- *   juce-webview-agent-bridge capture <on|off>       toggle response-body capture
- *   juce-webview-agent-bridge backlog                dump the page ring buffer
- *   juce-webview-agent-bridge logs [--backlog]       stream console/network (Ctrl-C to stop); --backlog dumps recent history first
- *   juce-webview-agent-bridge shot [out.png] [sel]   native screenshot (macOS/Windows); with a selector, crop to that element
- *   juce-webview-agent-bridge layerdebug [on|off]    WebKit compositing overlays: layer borders + repaint counters (macOS)
- *   juce-webview-agent-bridge layertree              dump the remote CALayer tree as text (macOS, programmatic layer census)
- *   juce-webview-agent-bridge ping                   liveness check
- *   juce-webview-agent-bridge hello                  capabilities handshake (version, platform, ops, screenshotAvailable)
- *   juce-webview-agent-bridge instances              list running bridges (port, label, process, pid) — no connection
+ *   juce-webview-driver eval "<js>"            run JS, print result/error
+ *   juce-webview-driver dom [selector]         outerHTML of selector (or <html>)
+ *   juce-webview-driver click <selector>       element.click()  (isTrusted=false)
+ *   juce-webview-driver fill <selector> <val>  React-safe value set + input event
+ *   juce-webview-driver capture <on|off>       toggle response-body capture
+ *   juce-webview-driver backlog                dump the page ring buffer
+ *   juce-webview-driver logs [--backlog]       stream console/network (Ctrl-C to stop); --backlog dumps recent history first
+ *   juce-webview-driver shot [out.png] [sel]   native screenshot (macOS/Windows); with a selector, crop to that element
+ *   juce-webview-driver layerdebug [on|off]    WebKit compositing overlays: layer borders + repaint counters (macOS)
+ *   juce-webview-driver layertree              dump the remote CALayer tree as text (macOS, programmatic layer census)
+ *   juce-webview-driver ping                   liveness check
+ *   juce-webview-driver hello                  capabilities handshake (version, platform, ops, screenshotAvailable)
+ *   juce-webview-driver instances              list running bridges (port, label, process, pid) — no connection
  *
- * Options:  --port <n>   (default $WEB_AGENT_PORT or 8930)
+ * Options:  --port <n>   (default $WEBVIEW_DRIVER_PORT or 8930)
  *           --host <h>   (default 127.0.0.1)
  */
 
@@ -49,8 +49,8 @@ const opt = (name: string, def: string): string => {
 };
 
 const HOST = opt('--host', '127.0.0.1');
-const portArg = opt('--port', process.env.WEB_AGENT_PORT || '');
-const tokenArg = opt('--token', process.env.WEB_AGENT_TOKEN || '');
+const portArg = opt('--port', process.env.WEBVIEW_DRIVER_PORT || '');
+const tokenArg = opt('--token', process.env.WEBVIEW_DRIVER_TOKEN || '');
 if (portArg && !(Number.isInteger(Number(portArg)) && Number(portArg) > 0 && Number(portArg) < 65536))
   argError ??= `--port must be a TCP port number, got ${JSON.stringify(portArg)}`;
 const disc = argError ? {} : loadDiscovery(portArg ? Number(portArg) : undefined);
@@ -249,12 +249,12 @@ async function main(): Promise<void> {
     }
     case 'capture': {
       const on = (rest[0] || 'on') === 'on';
-      await evalJs(`(window.__webAgentCapture = ${on}, '${on ? 'on' : 'off'}')`);
+      await evalJs(`(window.__webviewDriverCapture = ${on}, '${on ? 'on' : 'off'}')`);
       console.log(`response-body capture: ${on ? 'on' : 'off'}`);
       break;
     }
     case 'backlog': {
-      for (const e of parseBacklog(await evalJs(`JSON.stringify(window.__webAgentBuffer || [])`))) printSink(e);
+      for (const e of parseBacklog(await evalJs(`JSON.stringify(window.__webviewDriverBuffer || [])`))) printSink(e);
       break;
     }
     case 'shot': {
@@ -284,8 +284,8 @@ async function main(): Promise<void> {
       // dumps the page ring buffer so you also get the recent history in one go.
       if (rest.includes('--backlog') || rest.includes('-b')) {
         try {
-          for (const e of parseBacklog(await evalJs(`JSON.stringify(window.__webAgentBuffer || [])`))) printSink(e);
-        } catch (e) { process.stderr.write(`[juce-webview-agent-bridge] backlog unavailable: ${e instanceof Error ? e.message : String(e)}\n`); }
+          for (const e of parseBacklog(await evalJs(`JSON.stringify(window.__webviewDriverBuffer || [])`))) printSink(e);
+        } catch (e) { process.stderr.write(`[juce-webview-driver] backlog unavailable: ${e instanceof Error ? e.message : String(e)}\n`); }
       }
       // The stream runs until the host closes the socket (or Ctrl-C); the open
       // socket is what keeps the process alive, so main() just returns.
@@ -305,7 +305,7 @@ async function main(): Promise<void> {
         sock.destroy();
       };
       sock.write(JSON.stringify({ op: 'auth', id: authId, ...(TOKEN ? { token: TOKEN } : {}) }) + '\n'); // authenticate before streaming
-      process.stderr.write(`[juce-webview-agent-bridge] streaming from 127.0.0.1:${PORT} (Ctrl-C to stop)\n`);
+      process.stderr.write(`[juce-webview-driver] streaming from 127.0.0.1:${PORT} (Ctrl-C to stop)\n`);
       onJsonLines(sock, (m) => {
         if (m.op === 'sink') { printSink(m.event as SinkEvent); return; }
         if (m.id === authId) {

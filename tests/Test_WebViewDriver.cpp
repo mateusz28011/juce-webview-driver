@@ -1,6 +1,6 @@
 /*
   ==============================================================================
-    Test_WebAgentBridge.cpp  (module: juce_webview_agent_bridge)
+    Test_WebViewDriver.cpp  (module: juce_webview_driver)
 
     Catch2 tests for the C++ bridge — the loopback server, protocol, auth gate,
     discovery publishing, port scanning and sink fan-out. Deliberately uses ONLY
@@ -14,11 +14,11 @@
   ==============================================================================
 */
 
-#include <juce_webview_agent_bridge/juce_webview_agent_bridge.h>
+#include <juce_webview_driver/juce_webview_driver.h>
 
-#if WEB_AGENT_BRIDGE_ENABLED
+#if WEBVIEW_DRIVER_ENABLED
 
-#include <juce_webview_agent_bridge/detail/Screenshot.h> // computeCropPx (pure crop geometry)
+#include <juce_webview_driver/detail/Screenshot.h> // computeCropPx (pure crop geometry)
 
 #include <catch2/catch_test_macros.hpp>
 #include <juce_core/juce_core.h>
@@ -38,7 +38,7 @@
  #include <sys/stat.h>   // verify the discovery file is written 0600
 #endif
 
-using web_agent::WebAgentBridge;
+using webview_driver::WebViewDriver;
 
 namespace
 {
@@ -205,13 +205,13 @@ juce::String fromU16 (const std::u16string& s)
 struct FakeBigPage
 {
     std::function<std::u16string (const juce::String& expression)> valueOf;
-    std::map<juce::String, std::u16string> store;  // window.__webAgentBig
+    std::map<juce::String, std::u16string> store;  // window.__webviewDriverBig
     std::vector<juce::String> initScripts;
     int  cleanups       = 0;
     int  truncateChunk  = 0;     // drop this many units from every chunk (a broken page)
     bool dropValue      = false; // forget the value after init (a page reload)
 
-    void eval (const juce::String& js, const WebAgentBridge::EvalCallback& cb)
+    void eval (const juce::String& js, const WebViewDriver::EvalCallback& cb)
     {
         if (js.startsWith ("/*eval_big:init "))
         {
@@ -265,12 +265,12 @@ std::unique_ptr<juce::StreamingSocket> authedClient (int port, const juce::Strin
 } // namespace
 
 //==============================================================================
-TEST_CASE ("WebAgentBridge publishes {port,token} to the discovery file, and removes it on stop",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver publishes {port,token} to the discovery file, and removes it on stop",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_pub.json");
+    auto disc = tempDisc ("wvd_disc_pub.json");
 
-    WebAgentBridge bridge;
+    WebViewDriver bridge;
     const int port = bridge.start (18931, disc);
 
     REQUIRE (port != 0);
@@ -292,10 +292,10 @@ TEST_CASE ("WebAgentBridge publishes {port,token} to the discovery file, and rem
     REQUIRE_FALSE (disc.existsAsFile()); // stop() deletes the discovery file
 }
 
-TEST_CASE ("WebAgentBridge publishes an embedder-supplied instance label", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver publishes an embedder-supplied instance label", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_label.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_label.json");
+    WebViewDriver bridge;
     bridge.setInstanceLabel ("Track 3 EQ");
     const int port = bridge.start (19101, disc);
     REQUIRE (port != 0);
@@ -308,10 +308,10 @@ TEST_CASE ("WebAgentBridge publishes an embedder-supplied instance label", "[web
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge requires the session token before serving any op", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver requires the session token before serving any op", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_auth.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_auth.json");
+    WebViewDriver bridge;
     const int port = bridge.start (18941, disc);
     REQUIRE (port != 0);
     const auto token = tokenOf (disc);
@@ -338,10 +338,10 @@ TEST_CASE ("WebAgentBridge requires the session token before serving any op", "[
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge rejects an unknown op", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver rejects an unknown op", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_unknown.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_unknown.json");
+    WebViewDriver bridge;
     const int port = bridge.start (18951, disc);
     REQUIRE (port != 0);
     auto c = authedClient (port, tokenOf (disc));
@@ -362,16 +362,16 @@ TEST_CASE ("WebAgentBridge rejects an unknown op", "[web_agent][bridge]")
 // pumped loop — only meaningful when modal loops are permitted (the test builds
 // enable JUCE_MODAL_LOOPS_PERMITTED).
 #if JUCE_MODAL_LOOPS_PERMITTED
-TEST_CASE ("WebAgentBridge eval returns the evaluator result and surfaces its errors",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver eval returns the evaluator result and surfaces its errors",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_eval.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_eval.json");
+    WebViewDriver bridge;
     const int port = bridge.start (18961, disc);
     REQUIRE (port != 0);
 
     // Fake evaluator: echo the code length, except "boom" which fails.
-    bridge.setEvalFunction ([] (const juce::String& code, WebAgentBridge::EvalCallback cb)
+    bridge.setEvalFunction ([] (const juce::String& code, WebViewDriver::EvalCallback cb)
     {
         if (code == "boom") cb (false, juce::var(), "kaboom");
         else                cb (true, juce::var (code.length()), {});
@@ -396,11 +396,11 @@ TEST_CASE ("WebAgentBridge eval returns the evaluator result and surfaces its er
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge eval_big reassembles a large result in one request",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver eval_big reassembles a large result in one request",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_evalbig.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_evalbig.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19111, disc);
     REQUIRE (port != 0);
 
@@ -412,7 +412,7 @@ TEST_CASE ("WebAgentBridge eval_big reassembles a large result in one request",
         return expr.startsWith ("window.empty") ? std::u16string() : repeatU16 (u'X', 150000);
     };
     auto calls = std::make_shared<int> (0);
-    bridge.setEvalFunction ([page, calls] (const juce::String& code, WebAgentBridge::EvalCallback cb)
+    bridge.setEvalFunction ([page, calls] (const juce::String& code, WebViewDriver::EvalCallback cb)
     {
         ++(*calls);
         page->eval (code, cb);
@@ -443,11 +443,11 @@ TEST_CASE ("WebAgentBridge eval_big reassembles a large result in one request",
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge eval_big never splits a surrogate pair across chunks",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver eval_big never splits a surrogate pair across chunks",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_evalbig_sur.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_evalbig_sur.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19151, disc);
     REQUIRE (port != 0);
 
@@ -455,7 +455,7 @@ TEST_CASE ("WebAgentBridge eval_big never splits a surrogate pair across chunks"
     const auto value = repeatU16 (u'x', 59999) + std::u16string (u"\U0001F600") + repeatU16 (u'y', 1000);
     auto page = std::make_shared<FakeBigPage>();
     page->valueOf = [value] (const juce::String&) { return value; };
-    bridge.setEvalFunction ([page] (const juce::String& code, WebAgentBridge::EvalCallback cb) { page->eval (code, cb); });
+    bridge.setEvalFunction ([page] (const juce::String& code, WebViewDriver::EvalCallback cb) { page->eval (code, cb); });
 
     auto c = authedClient (port, tokenOf (disc));
     REQUIRE (sendLine (*c, R"({"id":85,"op":"eval_big","code":"window.s"})"));
@@ -466,17 +466,17 @@ TEST_CASE ("WebAgentBridge eval_big never splits a surrogate pair across chunks"
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge eval_big fails instead of returning a truncated result",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver eval_big fails instead of returning a truncated result",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_evalbig_bad.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_evalbig_bad.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19161, disc);
     REQUIRE (port != 0);
 
     auto page = std::make_shared<FakeBigPage>();
     page->valueOf = [] (const juce::String&) { return repeatU16 (u'Z', 100000); };
-    bridge.setEvalFunction ([page] (const juce::String& code, WebAgentBridge::EvalCallback cb) { page->eval (code, cb); });
+    bridge.setEvalFunction ([page] (const juce::String& code, WebViewDriver::EvalCallback cb) { page->eval (code, cb); });
     auto c = authedClient (port, tokenOf (disc));
 
     // A chunk that comes back short...
@@ -500,11 +500,11 @@ TEST_CASE ("WebAgentBridge eval_big fails instead of returning a truncated resul
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge concurrent eval_big requests don't interfere, even completing out of order",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver concurrent eval_big requests don't interfere, even completing out of order",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_evalbig_conc.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_evalbig_conc.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19171, disc);
     REQUIRE (port != 0);
 
@@ -516,9 +516,9 @@ TEST_CASE ("WebAgentBridge concurrent eval_big requests don't interfere, even co
 
     // The evaluator only queues; the test completes the NEWEST pending script first,
     // so the two requests' init/chunk reads interleave and finish out of order.
-    using Pending = std::vector<std::pair<juce::String, WebAgentBridge::EvalCallback>>;
+    using Pending = std::vector<std::pair<juce::String, WebViewDriver::EvalCallback>>;
     auto pending = std::make_shared<Pending>();
-    bridge.setEvalFunction ([pending] (const juce::String& code, WebAgentBridge::EvalCallback cb)
+    bridge.setEvalFunction ([pending] (const juce::String& code, WebViewDriver::EvalCallback cb)
     {
         pending->emplace_back (code, std::move (cb));
     });
@@ -558,11 +558,11 @@ TEST_CASE ("WebAgentBridge concurrent eval_big requests don't interfere, even co
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge: a client that never reads stalls neither the message thread nor stop()",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver: a client that never reads stalls neither the message thread nor stop()",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_noread.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_noread.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19181, disc);
     REQUIRE (port != 0);
 
@@ -570,7 +570,7 @@ TEST_CASE ("WebAgentBridge: a client that never reads stalls neither the message
     // a few pile up unread.
     auto evals = std::make_shared<std::atomic<int>> (0);
     const auto big = juce::String::repeatedString ("R", 1024 * 1024);
-    bridge.setEvalFunction ([evals, big] (const juce::String&, WebAgentBridge::EvalCallback cb)
+    bridge.setEvalFunction ([evals, big] (const juce::String&, WebViewDriver::EvalCallback cb)
     {
         ++(*evals);
         cb (true, juce::var (big), {});
@@ -593,10 +593,10 @@ TEST_CASE ("WebAgentBridge: a client that never reads stalls neither the message
     REQUIRE (juce::Time::getMillisecondCounter() - t0 < 2000u);
 }
 
-TEST_CASE ("WebAgentBridge bounds returns the registered screen rectangle", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver bounds returns the registered screen rectangle", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_bounds.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_bounds.json");
+    WebViewDriver bridge;
     const int port = bridge.start (18971, disc);
     REQUIRE (port != 0);
 
@@ -615,18 +615,18 @@ TEST_CASE ("WebAgentBridge bounds returns the registered screen rectangle", "[we
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge shot returns the path, surfaces errors, and threads the crop rect",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver shot returns the path, surfaces errors, and threads the crop rect",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_shot.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_shot.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19011, disc);
     REQUIRE (port != 0);
 
     // Fake capturer: record the crop rect, echo the requested path, except a "fail"
     // path which errors.
     auto lastCrop = std::make_shared<juce::Rectangle<int>> (-1, -1, -1, -1);
-    bridge.setScreenshotFunction ([lastCrop] (juce::File target, juce::Rectangle<int> crop, WebAgentBridge::ScreenshotCallback cb)
+    bridge.setScreenshotFunction ([lastCrop] (juce::File target, juce::Rectangle<int> crop, WebViewDriver::ScreenshotCallback cb)
     {
         *lastCrop = crop;
         const auto p = target.getFullPathName();
@@ -637,18 +637,18 @@ TEST_CASE ("WebAgentBridge shot returns the path, surfaces errors, and threads t
     auto c = authedClient (port, tokenOf (disc));
 
     // No rect -> empty crop (whole window).
-    REQUIRE (sendLine (*c, R"({"id":30,"op":"shot","path":"/tmp/wab_ok.png"})"));
+    REQUIRE (sendLine (*c, R"({"id":30,"op":"shot","path":"/tmp/wvd_ok.png"})"));
     const auto ok = recvReply (*c, 3000);
     REQUIRE ((bool) ok.getProperty ("ok", false));
     REQUIRE ((int) ok.getProperty ("id", -1) == 30);
     // The server replies with juce::File(path).getFullPathName(), which is
     // platform-normalized ("/tmp/x" becomes "D:\\tmp\\x" on Windows) — compare
     // through the same transformation instead of the raw wire string.
-    REQUIRE (ok.getProperty ("path", juce::var()).toString() == juce::File ("/tmp/wab_ok.png").getFullPathName());
+    REQUIRE (ok.getProperty ("path", juce::var()).toString() == juce::File ("/tmp/wvd_ok.png").getFullPathName());
     REQUIRE (lastCrop->isEmpty());
 
     // With a rect -> threaded through to the capturer verbatim.
-    REQUIRE (sendLine (*c, R"({"id":32,"op":"shot","path":"/tmp/wab_crop.png","rect":{"x":5,"y":6,"w":70,"h":80}})"));
+    REQUIRE (sendLine (*c, R"({"id":32,"op":"shot","path":"/tmp/wvd_crop.png","rect":{"x":5,"y":6,"w":70,"h":80}})"));
     const auto cropped = recvReply (*c, 3000);
     REQUIRE ((bool) cropped.getProperty ("ok", false));
     REQUIRE (*lastCrop == juce::Rectangle<int> (5, 6, 70, 80));
@@ -663,22 +663,22 @@ TEST_CASE ("WebAgentBridge shot returns the path, surfaces errors, and threads t
 
     // Out-of-range / non-numeric rect values are clamped (a double->int cast of them
     // would be undefined behaviour), and negative sizes floor at 0.
-    REQUIRE (sendLine (*c, R"({"id":33,"op":"shot","path":"/tmp/wab_huge.png","rect":{"x":1e300,"y":-1e300,"w":1e300,"h":-5}})"));
+    REQUIRE (sendLine (*c, R"({"id":33,"op":"shot","path":"/tmp/wvd_huge.png","rect":{"x":1e300,"y":-1e300,"w":1e300,"h":-5}})"));
     REQUIRE ((bool) recvReply (*c, 3000).getProperty ("ok", false));
     REQUIRE (*lastCrop == juce::Rectangle<int> (1000000, -1000000, 1000000, 0));
 
-    REQUIRE (sendLine (*c, R"({"id":34,"op":"shot","path":"/tmp/wab_str.png","rect":{"x":"abc","y":2.9,"w":10,"h":20}})"));
+    REQUIRE (sendLine (*c, R"({"id":34,"op":"shot","path":"/tmp/wvd_str.png","rect":{"x":"abc","y":2.9,"w":10,"h":20}})"));
     REQUIRE ((bool) recvReply (*c, 3000).getProperty ("ok", false));
     REQUIRE (*lastCrop == juce::Rectangle<int> (0, 2, 10, 20));
 
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge eval without a registered evaluator reports 'no webview'",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver eval without a registered evaluator reports 'no webview'",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_noeval.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_noeval.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19021, disc);
     REQUIRE (port != 0);
     // deliberately no setEvalFunction()
@@ -694,16 +694,16 @@ TEST_CASE ("WebAgentBridge eval without a registered evaluator reports 'no webvi
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge shot_stream streams frame events and replies with the count",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver shot_stream streams frame events and replies with the count",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_stream.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_stream.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19121, disc);
     REQUIRE (port != 0);
 
     auto outDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                      .getChildFile ("wab_stream_" + juce::Uuid().toString());
+                      .getChildFile ("wvd_stream_" + juce::Uuid().toString());
 
     // Fake capturer: deliver 3 synthetic frames from a worker thread (as the native
     // capture does), then finish. Real capture can't run headless; this exercises
@@ -712,8 +712,8 @@ TEST_CASE ("WebAgentBridge shot_stream streams frame events and replies with the
     auto seenFps = std::make_shared<int> (0);
     auto worker  = std::make_shared<std::thread>();
     bridge.setStreamFunction ([seenDir, seenFps, worker] (juce::File dir, int fps, int /*durMs*/, juce::Rectangle<int> /*crop*/,
-                                                          WebAgentBridge::StreamFrameCallback onFrame,
-                                                          WebAgentBridge::StreamDoneCallback onDone)
+                                                          WebViewDriver::StreamFrameCallback onFrame,
+                                                          WebViewDriver::StreamDoneCallback onDone)
     {
         *seenDir = dir;
         *seenFps = fps;
@@ -777,18 +777,18 @@ TEST_CASE ("WebAgentBridge shot_stream streams frame events and replies with the
     outDir.deleteRecursively();
 }
 
-TEST_CASE ("WebAgentBridge shot_stream reports a non-fatal problem as a warning, not an error",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver shot_stream reports a non-fatal problem as a warning, not an error",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_stream_warn.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_stream_warn.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19191, disc);
     REQUIRE (port != 0);
 
     auto outDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                      .getChildFile ("wab_stream_warn_" + juce::Uuid().toString());
+                      .getChildFile ("wvd_stream_warn_" + juce::Uuid().toString());
     bridge.setStreamFunction ([] (juce::File, int, int, juce::Rectangle<int>,
-                                  WebAgentBridge::StreamFrameCallback, WebAgentBridge::StreamDoneCallback onDone)
+                                  WebViewDriver::StreamFrameCallback, WebViewDriver::StreamDoneCallback onDone)
     {
         onDone (true, 2, "stopCapture warning");
     });
@@ -805,22 +805,22 @@ TEST_CASE ("WebAgentBridge shot_stream reports a non-fatal problem as a warning,
     outDir.deleteRecursively();
 }
 
-TEST_CASE ("WebAgentBridge stop() waits for an in-flight capture to complete",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver stop() waits for an in-flight capture to complete",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_stream_stop.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_stream_stop.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19201, disc);
     REQUIRE (port != 0);
 
     auto outDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                      .getChildFile ("wab_stream_stop_" + juce::Uuid().toString());
+                      .getChildFile ("wvd_stream_stop_" + juce::Uuid().toString());
     auto started  = std::make_shared<std::atomic<bool>> (false);
     auto finished = std::make_shared<std::atomic<bool>> (false);
     auto worker   = std::make_shared<std::thread>();
     bridge.setStreamFunction ([started, finished, worker] (juce::File, int, int, juce::Rectangle<int>,
-                                                           WebAgentBridge::StreamFrameCallback,
-                                                           WebAgentBridge::StreamDoneCallback onDone)
+                                                           WebViewDriver::StreamFrameCallback,
+                                                           WebViewDriver::StreamDoneCallback onDone)
     {
         started->store (true);
         *worker = std::thread ([finished, onDone]
@@ -845,11 +845,11 @@ TEST_CASE ("WebAgentBridge stop() waits for an in-flight capture to complete",
     outDir.deleteRecursively();
 }
 
-TEST_CASE ("WebAgentBridge shot_stream reports unavailable without a stream function",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver shot_stream reports unavailable without a stream function",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_stream_na.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_stream_na.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19131, disc);
     REQUIRE (port != 0);
     // deliberately no setStreamFunction()
@@ -864,7 +864,7 @@ TEST_CASE ("WebAgentBridge shot_stream reports unavailable without a stream func
 }
 #endif // JUCE_MODAL_LOOPS_PERMITTED
 
-TEST_CASE ("computeCropPx maps a viewport rect to clamped device pixels", "[web_agent][screenshot]")
+TEST_CASE ("computeCropPx maps a viewport rect to clamped device pixels", "[webview_driver][screenshot]")
 {
     using juce::Rectangle;
     const Rectangle<int>   image (0, 0, 1000, 800);            // captured image, device px
@@ -872,35 +872,35 @@ TEST_CASE ("computeCropPx maps a viewport rect to clamped device pixels", "[web_
     const double scale = 2.0;
 
     // No viewport crop -> the whole component, scaled to device px.
-    REQUIRE (web_agent::detail::computeCropPx (image, comp, {}, scale) == Rectangle<int> (0, 56, 1000, 744));
+    REQUIRE (webview_driver::detail::computeCropPx (image, comp, {}, scale) == Rectangle<int> (0, 56, 1000, 744));
 
     // A viewport sub-rect (logical px relative to the component) -> offset then scaled.
     // x=(0+10)*2=20  y=(28+20)*2=96  w=100*2=200  h=50*2=100
-    REQUIRE (web_agent::detail::computeCropPx (image, comp, Rectangle<int> (10, 20, 100, 50), scale)
+    REQUIRE (webview_driver::detail::computeCropPx (image, comp, Rectangle<int> (10, 20, 100, 50), scale)
              == Rectangle<int> (20, 96, 200, 100));
 
     // A rect spilling past the image edge is clamped to the image bounds.
     {
-        const auto px = web_agent::detail::computeCropPx (image, comp, Rectangle<int> (450, 360, 200, 100), scale);
+        const auto px = webview_driver::detail::computeCropPx (image, comp, Rectangle<int> (450, 360, 200, 100), scale);
         REQUIRE (px.getX() == 900);
         REQUIRE (px.getRight() == 1000);   // 1300 clamped
         REQUIRE (px.getBottom() == 800);   //  976 clamped
     }
 
     // A region fully outside the image -> empty (caller then falls back to no crop).
-    REQUIRE (web_agent::detail::computeCropPx (image, Rectangle<float> (2000.0f, 2000.0f, 10.0f, 10.0f), {}, scale).isEmpty());
+    REQUIRE (webview_driver::detail::computeCropPx (image, Rectangle<float> (2000.0f, 2000.0f, 10.0f, 10.0f), {}, scale).isEmpty());
 
     // Degenerate scale or image -> empty.
-    REQUIRE (web_agent::detail::computeCropPx (image, comp, {}, 0.0).isEmpty());
-    REQUIRE (web_agent::detail::computeCropPx ({}, comp, {}, scale).isEmpty());
+    REQUIRE (webview_driver::detail::computeCropPx (image, comp, {}, 0.0).isEmpty());
+    REQUIRE (webview_driver::detail::computeCropPx ({}, comp, {}, scale).isEmpty());
 
     // A crop far outside int range after scaling can't overflow the conversion.
     const int big = std::numeric_limits<int>::max() - 10;
-    REQUIRE (web_agent::detail::computeCropPx (image, comp, Rectangle<int> (big, big, 100, 100), 1.0e6).isEmpty());
+    REQUIRE (webview_driver::detail::computeCropPx (image, comp, Rectangle<int> (big, big, 100, 100), 1.0e6).isEmpty());
 }
 
 TEST_CASE ("componentInCapturedWindowPts handles full-window and client-only captures",
-           "[web_agent][screenshot]")
+           "[webview_driver][screenshot]")
 {
     using juce::Rectangle;
     const Rectangle<int> windowPx (0, 0, 1200, 900);
@@ -908,7 +908,7 @@ TEST_CASE ("componentInCapturedWindowPts handles full-window and client-only cap
     const Rectangle<int> componentInClientPts (10, 20, 500, 400);
     constexpr double scale = 1.5;
 
-    const auto inWholeWindow = web_agent::detail::componentInCapturedWindowPts (
+    const auto inWholeWindow = webview_driver::detail::componentInCapturedWindowPts (
         windowPx, windowPx, clientInWindowPx, componentInClientPts, scale);
     REQUIRE (std::abs (inWholeWindow.getX() - 15.333333f) < 0.0001f);
     REQUIRE (std::abs (inWholeWindow.getY() - 40.666667f) < 0.0001f);
@@ -916,21 +916,21 @@ TEST_CASE ("componentInCapturedWindowPts handles full-window and client-only cap
     REQUIRE (std::abs (inWholeWindow.getHeight() - 400.0f) < 0.0001f);
 
     const Rectangle<int> clientCapture (0, 0, 1184, 861);
-    const auto inClientOnly = web_agent::detail::componentInCapturedWindowPts (
+    const auto inClientOnly = webview_driver::detail::componentInCapturedWindowPts (
         clientCapture, windowPx, clientInWindowPx, componentInClientPts, scale);
     REQUIRE (inClientOnly == Rectangle<float> (10.0f, 20.0f, 500.0f, 400.0f));
 
-    REQUIRE (web_agent::detail::componentInCapturedWindowPts (
+    REQUIRE (webview_driver::detail::componentInCapturedWindowPts (
         windowPx, windowPx, clientInWindowPx, componentInClientPts, 0.0).isEmpty());
 }
 
-TEST_CASE ("WebAgentBridge hello reports protocol version + capabilities", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver hello reports protocol version + capabilities", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_hello.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_hello.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19031, disc);
     REQUIRE (port != 0);
-    bridge.setScreenshotFunction ([] (juce::File, juce::Rectangle<int>, WebAgentBridge::ScreenshotCallback cb) { cb (true, "/x.png", {}); });
+    bridge.setScreenshotFunction ([] (juce::File, juce::Rectangle<int>, WebViewDriver::ScreenshotCallback cb) { cb (true, "/x.png", {}); });
 
     auto c = authedClient (port, tokenOf (disc));
     REQUIRE (sendLine (*c, R"({"id":50,"op":"hello"})"));
@@ -944,7 +944,7 @@ TEST_CASE ("WebAgentBridge hello reports protocol version + capabilities", "[web
     // The module build, so a client can name it when a capability is missing:
     // protocolVersion only moves on a breaking change and cannot identify a
     // plugin built against a stale module pin. Must match the declaration.
-    REQUIRE (r.getProperty ("moduleVersion", juce::var()).toString() == WEB_AGENT_BRIDGE_VERSION);
+    REQUIRE (r.getProperty ("moduleVersion", juce::var()).toString() == WEBVIEW_DRIVER_VERSION);
 
     const auto ops = r.getProperty ("ops", juce::var());
     REQUIRE (ops.isArray());
@@ -962,14 +962,14 @@ TEST_CASE ("WebAgentBridge hello reports protocol version + capabilities", "[web
 
     // Once one is bound, it is advertised wherever the OS can stream (macOS 14+).
     bridge.setStreamFunction ([] (juce::File, int, int, juce::Rectangle<int>,
-                                  WebAgentBridge::StreamFrameCallback, WebAgentBridge::StreamDoneCallback done)
+                                  WebViewDriver::StreamFrameCallback, WebViewDriver::StreamDoneCallback done)
                               { done (true, 0, {}); });
     REQUIRE (sendLine (*c, R"({"id":51,"op":"hello"})"));
     const auto r2 = recvReply (*c, 2000);
     bool hasStreamBound = false;
     for (const auto& o : *r2.getProperty ("ops", juce::var()).getArray())
         if (o.toString() == "shot_stream") hasStreamBound = true;
-    REQUIRE (hasStreamBound == web_agent::detail::streamCaptureOsSupported());
+    REQUIRE (hasStreamBound == webview_driver::detail::streamCaptureOsSupported());
 
    #if JUCE_MAC
     REQUIRE (r.getProperty ("platform", juce::var()).toString() == "mac");
@@ -984,11 +984,11 @@ TEST_CASE ("WebAgentBridge hello reports protocol version + capabilities", "[web
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge sink frames carry a monotonic seq, and sink_replay catches up",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver sink frames carry a monotonic seq, and sink_replay catches up",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_seq.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_seq.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19051, disc);
     REQUIRE (port != 0);
 
@@ -1037,10 +1037,10 @@ TEST_CASE ("WebAgentBridge sink frames carry a monotonic seq, and sink_replay ca
 }
 
 #if ! JUCE_WINDOWS
-TEST_CASE ("WebAgentBridge writes the discovery file owner-only (0600)", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver writes the discovery file owner-only (0600)", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_perms.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_perms.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19041, disc);
     REQUIRE (port != 0);
     REQUIRE (disc.existsAsFile());
@@ -1049,7 +1049,7 @@ TEST_CASE ("WebAgentBridge writes the discovery file owner-only (0600)", "[web_a
     REQUIRE (stat (disc.getFullPathName().toRawUTF8(), &st) == 0);
     REQUIRE ((st.st_mode & 0777) == 0600); // token is plaintext -> owner-only
 
-    const auto inst = disc.getParentDirectory().getChildFile (".web_agent_bridge.d")
+    const auto inst = disc.getParentDirectory().getChildFile (".juce_webview_driver.d")
                           .getChildFile (juce::String (port) + ".json");
     REQUIRE (stat (inst.getFullPathName().toRawUTF8(), &st) == 0);
     REQUIRE ((st.st_mode & 0777) == 0600);
@@ -1058,17 +1058,17 @@ TEST_CASE ("WebAgentBridge writes the discovery file owner-only (0600)", "[web_a
 }
 #endif
 
-TEST_CASE ("WebAgentBridge registers a per-instance discovery file (multi-instance safe)",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver registers a per-instance discovery file (multi-instance safe)",
+           "[webview_driver][bridge]")
 {
     auto base = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                    .getChildFile ("wab_multi_" + juce::Uuid().toString());
+                    .getChildFile ("wvd_multi_" + juce::Uuid().toString());
     base.createDirectory();
     auto d1 = base.getChildFile ("a.json");
     auto d2 = base.getChildFile ("b.json");
-    auto instDir = base.getChildFile (".web_agent_bridge.d");
+    auto instDir = base.getChildFile (".juce_webview_driver.d");
 
-    WebAgentBridge b1, b2;
+    WebViewDriver b1, b2;
     const int p1 = b1.start (19061, d1);
     const int p2 = b2.start (19061, d2); // 19061 taken -> scans up, distinct port
     REQUIRE (p1 != 0);
@@ -1092,11 +1092,11 @@ TEST_CASE ("WebAgentBridge registers a per-instance discovery file (multi-instan
     base.deleteRecursively();
 }
 
-TEST_CASE ("WebAgentBridge streams sink events only to authenticated connections",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver streams sink events only to authenticated connections",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_sink.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_sink.json");
+    WebViewDriver bridge;
     const int port = bridge.start (18981, disc);
     REQUIRE (port != 0);
     const auto token = tokenOf (disc);
@@ -1131,11 +1131,11 @@ TEST_CASE ("WebAgentBridge streams sink events only to authenticated connections
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge survives writing to a client that vanished mid-stream (no SIGPIPE)",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver survives writing to a client that vanished mid-stream (no SIGPIPE)",
+           "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_sigpipe.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_sigpipe.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19071, disc);
     REQUIRE (port != 0);
     const auto token = tokenOf (disc);
@@ -1174,10 +1174,10 @@ TEST_CASE ("WebAgentBridge survives writing to a client that vanished mid-stream
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge caps the number of simultaneous connections", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver caps the number of simultaneous connections", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_cap.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_cap.json");
+    WebViewDriver bridge;
     bridge.setMaxConnections (2);
     const int port = bridge.start (19081, disc);
     REQUIRE (port != 0);
@@ -1202,10 +1202,10 @@ TEST_CASE ("WebAgentBridge caps the number of simultaneous connections", "[web_a
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge honours a configured sink history limit", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver honours a configured sink history limit", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_hist.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_hist.json");
+    WebViewDriver bridge;
     bridge.setSinkLimits (4096, 2); // keep only the 2 most recent frames for replay
     const int port = bridge.start (19091, disc);
     REQUIRE (port != 0);
@@ -1237,17 +1237,17 @@ TEST_CASE ("WebAgentBridge honours a configured sink history limit", "[web_agent
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge fails CLOSED (refuses to start) when it cannot publish the token",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver fails CLOSED (refuses to start) when it cannot publish the token",
+           "[webview_driver][bridge]")
 {
     // A child of a regular file is unwritable, so replaceWithText() fails. A tool
     // that runs arbitrary JS must not silently drop auth — the bridge refuses to
     // start rather than accept unauthenticated clients.
-    auto parentFile = tempDisc ("wab_parent_is_file");
+    auto parentFile = tempDisc ("wvd_parent_is_file");
     REQUIRE (parentFile.replaceWithText ("x"));
     auto unwritable = parentFile.getChildFile ("disc.json");
 
-    WebAgentBridge bridge;
+    WebViewDriver bridge;
     const int port = bridge.start (18991, unwritable); // default: fail closed
     REQUIRE (port == 0);
     REQUIRE_FALSE (bridge.isRunning());
@@ -1260,14 +1260,14 @@ TEST_CASE ("WebAgentBridge fails CLOSED (refuses to start) when it cannot publis
     parentFile.deleteFile();
 }
 
-TEST_CASE ("WebAgentBridge fails open only when allowUnauthenticatedLoopback is opted into",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver fails open only when allowUnauthenticatedLoopback is opted into",
+           "[webview_driver][bridge]")
 {
-    auto parentFile = tempDisc ("wab_parent_is_file_open");
+    auto parentFile = tempDisc ("wvd_parent_is_file_open");
     REQUIRE (parentFile.replaceWithText ("x"));
     auto unwritable = parentFile.getChildFile ("disc.json");
 
-    WebAgentBridge bridge;
+    WebViewDriver bridge;
     const int port = bridge.start (18991, unwritable, /*allowUnauthenticatedLoopback=*/true);
     REQUIRE (port != 0);
     REQUIRE (bridge.isRunning());
@@ -1288,13 +1288,13 @@ TEST_CASE ("WebAgentBridge fails open only when allowUnauthenticatedLoopback is 
     parentFile.deleteFile();
 }
 
-TEST_CASE ("WebAgentBridge scans to the next port when the preferred one is taken",
-           "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver scans to the next port when the preferred one is taken",
+           "[webview_driver][bridge]")
 {
-    auto d1 = tempDisc ("wab_disc_scan1.json");
-    auto d2 = tempDisc ("wab_disc_scan2.json");
+    auto d1 = tempDisc ("wvd_disc_scan1.json");
+    auto d2 = tempDisc ("wvd_disc_scan2.json");
 
-    WebAgentBridge first, second;
+    WebViewDriver first, second;
     const int p1 = first.start (19001, d1);
     REQUIRE (p1 != 0);
 
@@ -1307,10 +1307,10 @@ TEST_CASE ("WebAgentBridge scans to the next port when the preferred one is take
     second.stop();
 }
 
-TEST_CASE ("WebAgentBridge session tokens are 128-bit random hex, fresh per start", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver session tokens are 128-bit random hex, fresh per start", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_token.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_token.json");
+    WebViewDriver bridge;
     REQUIRE (bridge.start (19211, disc) != 0);
     const auto t1 = tokenOf (disc);
     bridge.stop();
@@ -1323,10 +1323,10 @@ TEST_CASE ("WebAgentBridge session tokens are 128-bit random hex, fresh per star
     REQUIRE (t1 != t2);
 }
 
-TEST_CASE ("WebAgentBridge closes a connection after 3 failed auth attempts", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver closes a connection after 3 failed auth attempts", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_authfail.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_authfail.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19221, disc);
     REQUIRE (port != 0);
 
@@ -1345,10 +1345,10 @@ TEST_CASE ("WebAgentBridge closes a connection after 3 failed auth attempts", "[
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge closes connections that never authenticate", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver closes connections that never authenticate", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_authdeadline.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_authdeadline.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19231, disc);
     REQUIRE (port != 0);
 
@@ -1363,10 +1363,10 @@ TEST_CASE ("WebAgentBridge closes connections that never authenticate", "[web_ag
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge bounds what an unauthenticated client can make it parse", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver bounds what an unauthenticated client can make it parse", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_preauth.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_preauth.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19241, disc);
     REQUIRE (port != 0);
 
@@ -1399,13 +1399,13 @@ TEST_CASE ("WebAgentBridge bounds what an unauthenticated client can make it par
 }
 
 #if JUCE_MODAL_LOOPS_PERMITTED // eval replies are marshalled to the message thread
-TEST_CASE ("WebAgentBridge serves a large pre-auth request that carries the token inline", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver serves a large pre-auth request that carries the token inline", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_inline_token.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_inline_token.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19281, disc);
     REQUIRE (port != 0);
-    bridge.setEvalFunction ([] (const juce::String& code, WebAgentBridge::EvalCallback cb) { cb (true, juce::var (code.length()), {}); });
+    bridge.setEvalFunction ([] (const juce::String& code, WebViewDriver::EvalCallback cb) { cb (true, juce::var (code.length()), {}); });
 
     // The documented pattern: the token rides on the request itself — here a 10 KB
     // eval, well past the 4 KB pre-auth parse limit (and after the code member).
@@ -1426,16 +1426,16 @@ TEST_CASE ("WebAgentBridge serves a large pre-auth request that carries the toke
 }
 
 #if ! JUCE_WINDOWS
-TEST_CASE ("WebAgentBridge still replies to a client that half-closes after sending", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver still replies to a client that half-closes after sending", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_halfclose.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_halfclose.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19291, disc);
     REQUIRE (port != 0);
 
     // The evaluator answers only when the test says so — after the client's EOF.
-    WebAgentBridge::EvalCallback pending;
-    bridge.setEvalFunction ([&pending] (const juce::String&, WebAgentBridge::EvalCallback cb) { pending = std::move (cb); });
+    WebViewDriver::EvalCallback pending;
+    bridge.setEvalFunction ([&pending] (const juce::String&, WebViewDriver::EvalCallback cb) { pending = std::move (cb); });
 
     auto c = authedClient (port, tokenOf (disc));
     REQUIRE (sendLine (*c, R"({"id":21,"op":"eval","code":"x"})"));
@@ -1461,10 +1461,10 @@ TEST_CASE ("WebAgentBridge still replies to a client that half-closes after send
 #endif // ! JUCE_WINDOWS
 #endif // JUCE_MODAL_LOOPS_PERMITTED
 
-TEST_CASE ("WebAgentBridge survives deeply nested JSON from an authenticated client", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver survives deeply nested JSON from an authenticated client", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_deep.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_deep.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19251, disc);
     REQUIRE (port != 0);
 
@@ -1481,10 +1481,10 @@ TEST_CASE ("WebAgentBridge survives deeply nested JSON from an authenticated cli
     bridge.stop();
 }
 
-TEST_CASE ("WebAgentBridge stop() leaves a discovery file another instance overwrote", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver stop() leaves a discovery file another instance overwrote", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_shared.json");
-    WebAgentBridge a, b;
+    auto disc = tempDisc ("wvd_disc_shared.json");
+    WebViewDriver a, b;
     const int pa = a.start (19261, disc);
     const int pb = b.start (19261, disc); // same legacy path: b's record replaces a's
     REQUIRE (pa != 0);
@@ -1499,10 +1499,10 @@ TEST_CASE ("WebAgentBridge stop() leaves a discovery file another instance overw
     REQUIRE_FALSE (disc.existsAsFile());
 }
 
-TEST_CASE ("WebAgentBridge delivers concurrently pushed sink frames in seq order", "[web_agent][bridge]")
+TEST_CASE ("WebViewDriver delivers concurrently pushed sink frames in seq order", "[webview_driver][bridge]")
 {
-    auto disc = tempDisc ("wab_disc_seqorder.json");
-    WebAgentBridge bridge;
+    auto disc = tempDisc ("wvd_disc_seqorder.json");
+    WebViewDriver bridge;
     const int port = bridge.start (19271, disc);
     REQUIRE (port != 0);
     auto c = authedClient (port, tokenOf (disc));
@@ -1534,4 +1534,4 @@ TEST_CASE ("WebAgentBridge delivers concurrently pushed sink frames in seq order
     bridge.stop();
 }
 
-#endif // WEB_AGENT_BRIDGE_ENABLED
+#endif // WEBVIEW_DRIVER_ENABLED

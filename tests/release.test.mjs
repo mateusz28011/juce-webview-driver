@@ -52,7 +52,7 @@ function extractVersionGate() {
 /** Run the version gate against a package.json fixture + a bump argument;
  * resolve its exit code, output, and the resulting $new (if it succeeded). */
 function runVersionGate(currentVersion, bumpArg) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-release-version-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-release-version-'));
   try {
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ version: currentVersion }));
     fs.writeFileSync(path.join(dir, 'gate.sh'), extractVersionGate());
@@ -84,7 +84,7 @@ const README_TAG_GREP = 'grep -qE "GIT_TAG +${tag}" README.md';
 /** Run the README GIT_TAG sed + its grep verification against a README
  * fixture — both lines pulled verbatim from the real script. */
 function runReadmeTagUpdate(readme, { tag = 'v0.7.0' } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-release-readme-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-release-readme-'));
   try {
     fs.writeFileSync(path.join(dir, 'README.md'), readme);
     const sedLine = extractLine(README_TAG_SED);
@@ -104,7 +104,7 @@ function runReadmeTagUpdate(readme, { tag = 'v0.7.0' } = {}) {
 
 /** Run the gate against a changelog fixture; resolve its exit code + output. */
 function runGate(changelog, { version = '0.5.1' } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wab-release-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wvd-release-'));
   try {
     fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), changelog);
     fs.writeFileSync(path.join(dir, 'gate.sh'), extractGate());
@@ -265,7 +265,7 @@ test('an explicit version that is not greater than the current one is refused', 
 
 test('the GIT_TAG sed + verification round-trip regardless of padding width', () => {
   for (const spaces of [1, 4, 8, 12]) {
-    const readme = `\`\`\`cmake\nFetchContent_Declare(juce_webview_agent_bridge\n    GIT_REPOSITORY https://github.com/mateusz28011/juce-webview-agent-bridge.git\n    GIT_TAG${' '.repeat(spaces)}v0.6.0)\nFetchContent_MakeAvailable(juce_webview_agent_bridge)\n\`\`\`\n`;
+    const readme = `\`\`\`cmake\nFetchContent_Declare(juce_webview_driver\n    GIT_REPOSITORY https://github.com/mateusz28011/juce-webview-driver.git\n    GIT_TAG${' '.repeat(spaces)}v0.6.0)\nFetchContent_MakeAvailable(juce_webview_driver)\n\`\`\`\n`;
     const { code, readme: updated } = runReadmeTagUpdate(readme, { tag: 'v0.7.0' });
     assert.equal(code, 0, `expected padding of ${spaces} spaces to pass verification`);
     assert.match(updated, /GIT_TAG\s+v0\.7\.0\)/);

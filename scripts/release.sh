@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release.sh — release helper for juce-webview-agent-bridge (GitHub edition).
+# release.sh — release helper for juce-webview-driver (GitHub edition).
 #
 # Bumps the ONE module version everywhere it lives, commits it as
 # `chore(release): vX.Y.Z`, tags an ANNOTATED `vX.Y.Z`, pushes main + the
@@ -8,8 +8,8 @@
 # the bump reads from):
 #   - package.json                                "version"
 #   - package-lock.json                           root/package versions
-#   - juce_webview_agent_bridge/juce_webview_agent_bridge.h         JUCE module declaration `version:`
-#                                                 AND the WEB_AGENT_BRIDGE_VERSION
+#   - juce_webview_driver/juce_webview_driver.h         JUCE module declaration `version:`
+#                                                 AND the WEBVIEW_DRIVER_VERSION
 #                                                 macro the `hello` reply reports
 #   - tests/CMakeLists.txt                        project(... VERSION X.Y.Z ...)
 #   - README.md                                   FetchContent GIT_TAG pin
@@ -116,15 +116,15 @@ node -e "
   lock.packages[''].version = '${new}';
   fs.writeFileSync('package-lock.json', JSON.stringify(lock, null, 2) + '\n');
 "
-sed -i.bak -E "s|^(   version: +)[0-9]+\.[0-9]+\.[0-9]+$|\1${new}|" juce_webview_agent_bridge/juce_webview_agent_bridge.h
-sed -i.bak -E "s|(#define WEB_AGENT_BRIDGE_VERSION \")[0-9]+\.[0-9]+\.[0-9]+\"|\1${new}\"|" juce_webview_agent_bridge/juce_webview_agent_bridge.h
-sed -i.bak -E "s|(project\(web_agent_bridge_tests VERSION )[0-9]+\.[0-9]+\.[0-9]+|\1${new}|" tests/CMakeLists.txt
+sed -i.bak -E "s|^(   version: +)[0-9]+\.[0-9]+\.[0-9]+$|\1${new}|" juce_webview_driver/juce_webview_driver.h
+sed -i.bak -E "s|(#define WEBVIEW_DRIVER_VERSION \")[0-9]+\.[0-9]+\.[0-9]+\"|\1${new}\"|" juce_webview_driver/juce_webview_driver.h
+sed -i.bak -E "s|(project\(webview_driver_tests VERSION )[0-9]+\.[0-9]+\.[0-9]+|\1${new}|" tests/CMakeLists.txt
 sed -i.bak -E "s|(GIT_TAG +)v[0-9]+\.[0-9]+\.[0-9]+|\1${tag}|" README.md
-rm -f juce_webview_agent_bridge/juce_webview_agent_bridge.h.bak tests/CMakeLists.txt.bak README.md.bak
+rm -f juce_webview_driver/juce_webview_driver.h.bak tests/CMakeLists.txt.bak README.md.bak
 
 # Every site must now carry the new version — catch a silently-unmatched sed.
-grep -q "version:            ${new}" juce_webview_agent_bridge/juce_webview_agent_bridge.h
-grep -q "#define WEB_AGENT_BRIDGE_VERSION \"${new}\"" juce_webview_agent_bridge/juce_webview_agent_bridge.h
+grep -q "version:            ${new}" juce_webview_driver/juce_webview_driver.h
+grep -q "#define WEBVIEW_DRIVER_VERSION \"${new}\"" juce_webview_driver/juce_webview_driver.h
 grep -q "VERSION ${new}" tests/CMakeLists.txt
 grep -qE "GIT_TAG +${tag}" README.md
 node -e "const p=require('./package-lock.json'); if(p.version!=='${new}' || p.packages[''].version!=='${new}') process.exit(1)"
@@ -148,7 +148,7 @@ run_step "TypeScript build failed" npm run build
 run_step "npm test failed" npm test
 run_step "public TypeScript API check failed" npm run test:types
 run_step "npm package dry-run failed" npm pack --dry-run
-git add package.json package-lock.json juce_webview_agent_bridge/juce_webview_agent_bridge.h tests/CMakeLists.txt README.md tools
+git add package.json package-lock.json juce_webview_driver/juce_webview_driver.h tests/CMakeLists.txt README.md tools
 git commit -m "chore(release): ${tag}"
 git tag -a "${tag}" -m "${tag}"
 [[ "$(git cat-file -t "${tag}")" == "tag" ]] || { echo "✗ ${tag} is not annotated." >&2; exit 1; }
