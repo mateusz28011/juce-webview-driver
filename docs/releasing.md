@@ -96,10 +96,46 @@ git status --short                         # must be clean
 ```
 
 Also open the GitHub Release: the title must be exactly `vX.Y.Z`. `scripts/release.sh`
-now fills the body automatically from the `[X.Y.Z]` section of `CHANGELOG.md`
+passes it as `--title`, so the `name` field printed above must equal the tag
+(v0.6.0–v0.8.0 were created without it, and GitHub only displayed the tag). It
+also fills the body automatically from the `[X.Y.Z]` section of `CHANGELOG.md`
 (the single source of truth) plus the full comparison link — no hand-written body,
 no GitHub raw commit list. Just confirm the section rendered as expected. If the
 section was somehow empty, the script falls back to `--generate-notes`.
+
+## First release under a new package name
+
+Trusted publishing is configured on an npm package that already exists, so the
+workflow cannot publish a name npm has never seen: its publish step fails with
+`E404` while the tag and GitHub Release succeed. This happened once, for v0.8.0
+after the rename to `juce-webview-driver`. To finish such a release:
+
+1. Publish that version once from its tag, in a clean clone. `npm ci` first,
+   because `prepublishOnly` rebuilds and tests. Use npm 11, which confirms
+   2FA in the browser instead of asking for an authenticator code, and run it
+   in an interactive terminal so it can wait for that confirmation:
+
+   ```bash
+   git clone --branch vX.Y.Z --depth 1 https://github.com/mateusz28011/juce-webview-driver.git /tmp/wvd-release
+   cd /tmp/wvd-release && npm ci --ignore-scripts
+   npx npm@11 login --auth-type=web
+   npx npm@11 publish --access public --auth-type=web
+   ```
+
+   The tarball's `shasum` should match the one the failed workflow printed.
+   npm may list a `0.0.0-stage` placeholder for a few minutes while it
+   processes the upload.
+
+2. Register the workflow as the package's trusted publisher:
+
+   ```bash
+   npx npm@11 trust github <package> --file release.yml --repo mateusz28011/juce-webview-driver --env npm --allow-publish -y
+   ```
+
+3. When renaming, deprecate the old package so its users find the new one:
+   `npx npm@11 deprecate <old-package> "Renamed to <package>: <npm url>"`.
+
+From the next release on, the workflow publishes on its own again.
 
 ## If something fails midway
 

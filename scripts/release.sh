@@ -157,7 +157,7 @@ git tag -a "${tag}" -m "${tag}"
 if ! git remote get-url origin >/dev/null 2>&1; then
   echo "▸ No 'origin' remote — stopped after the local tag. When the GitHub repo exists:"
   echo "    git push --atomic origin main ${tag}"
-  echo "    gh release create ${tag} --generate-notes"
+  echo "    gh release create ${tag} --title ${tag} --generate-notes"
   exit 0
 fi
 git push --atomic origin main "${tag}"
@@ -179,7 +179,7 @@ if command -v gh >/dev/null 2>&1; then
   fi
   if [[ -s "${notes_file}" ]]; then release_notes=(--notes-file "${notes_file}")
   else                              release_notes=(--generate-notes); fi # fallback: empty section
-  if ! gh release create "${tag}" "${release_notes[@]}"; then
+  if ! gh release create "${tag}" --title "${tag}" "${release_notes[@]}"; then
     echo "⚠ Tag was pushed but GitHub Release failed — retry that command, then run: npm publish --access public" >&2
     exit 1
   fi

@@ -5,6 +5,13 @@ commit comparisons are available from the linked GitHub Releases.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-13
+
+### Fixed
+
+- GitHub Releases created by the release script now carry the title `vX.Y.Z`
+  instead of an empty title.
+
 ## [0.8.0] - 2026-10-13
 
 ### Added
@@ -309,7 +316,8 @@ There are no package API changes in this release.
 - Zero-dependency CLI, Playwright-shaped E2E client, agent skill, and standalone
   JavaScript and C++ test suites.
 
-[Unreleased]: https://github.com/mateusz28011/juce-webview-driver/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mateusz28011/juce-webview-driver/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.8.1
 [0.8.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.8.0
 [0.7.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.7.0
 [0.6.0]: https://github.com/mateusz28011/juce-webview-driver/releases/tag/v0.6.0
